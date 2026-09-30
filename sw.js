@@ -1,10 +1,11 @@
 // 皇城探祕記：明清時光機 — 簡易 Service Worker
 // 目的：讓瀏覽器判定這是一個「可安裝」的網頁應用（PWA），並提供基本離線快取
-const CACHE_NAME = 'hcts-cache-v1';
+const CACHE_NAME = 'hcts-cache-v3';
 const APP_SHELL = [
   './game.html',
   './index.html',
   './manifest.json',
+  './pwa.js',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png'
@@ -32,6 +33,22 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return; // 不快取跨網域資源
 
+  // 網頁本身（HTML）與 pwa.js 走「網路優先」：有網路就拿最新版，離線才用快取
+  const isPage = event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/pwa.js');
+  if (isPage) {
+    event.respondWith(
+      fetch(event.request).then((networkResp) => {
+        if (networkResp && networkResp.status === 200) {
+          const clone = networkResp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return networkResp;
+      }).catch(() => caches.match(event.request, { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // 圖片、音樂等素材走「快取優先」
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request).then((networkResp) => {

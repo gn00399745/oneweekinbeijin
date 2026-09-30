@@ -2646,12 +2646,7 @@ applyEasterEggTheme();
 renderMap();
 if(new URLSearchParams(location.search).has('makercheat')){ makerCheatCompleteAll(); }
 
-// PWA：註冊 Service Worker，讓手機瀏覽器可以判定這是可安裝的應用程式，並提供基本離線快取
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
-}
 </script>
+<script src="pwa.js"></script>
 </body>
 </html>

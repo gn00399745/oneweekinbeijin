@@ -2,7 +2,7 @@
   "name": "皇城探祕記：明清時光機",
   "short_name": "皇城探祕記",
   "description": "沿著北京中軸線，從南到北解開六百年皇城的祕密——明清時光機教育闖關遊戲",
-  "start_url": "./game.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
