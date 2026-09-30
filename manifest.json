@@ -1,0 +1,17 @@
+{
+  "name": "皇城探祕記：明清時光機",
+  "short_name": "皇城探祕記",
+  "description": "沿著北京中軸線，從南到北解開六百年皇城的祕密——明清時光機教育闖關遊戲",
+  "start_url": "./game.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1c140d",
+  "theme_color": "#1c140d",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
