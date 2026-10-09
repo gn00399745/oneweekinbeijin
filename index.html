@@ -883,10 +883,13 @@ function drawLeg(from, to, color){
 }
 
 // the day's route starts from the hotel where everyone slept last night (day.start),
-// then visits each pinned stop in order
+// visits each pinned stop in order, then ends back at tonight's hotel
+// (except the last day, whose "hotel" is home in Taiwan — skipBounds)
 function routePoints(day){
   const pts = day.stops.filter(s=>s.lat!=null);
-  return day.start ? [day.start, ...pts] : pts;
+  const out = day.start ? [day.start, ...pts] : pts;
+  if(day.hotel && day.hotel.lat && !day.hotel.skipBounds) out.push(day.hotel);
+  return out;
 }
 
 function drawRouteLegs(day){
@@ -1000,6 +1003,9 @@ function renderDay(){
     sn.innerHTML = `🏨 <b>出發：</b>早上從「${day.start.name}」出發，地圖上的路線從飯店開始。`;
     stopGrid.appendChild(sn);
   }
+  const endNote = (day.hotel && !day.hotel.skipBounds)
+    ? `🌙 <b>回飯店：</b>行程結束後回到「${day.hotel.name}」休息，地圖上的路線最後一段就是回飯店。`
+    : null;
   day.stops.forEach((s,idx)=>{
     const c = chip(`<div class="card stop" style="--day-color:${day.color}">
       ${photoBlock(s.img, day.color)}
@@ -1013,6 +1019,14 @@ function renderDay(){
     c.onclick = ()=> openModal({title:s.name, loc:`第 ${idx+1} 站　・　預計停留 ${s.stay||'—'}`, text:s.desc, tags: s.special?['深度導覽可用']:['景點'], gugong: s.special==='gugong', img:s.img});
     stopGrid.appendChild(c);
   });
+
+  if(endNote){
+    const en = document.createElement('div');
+    en.className='breakfast-note';
+    en.style.gridColumn='1 / -1'; en.style.marginTop='0';
+    en.innerHTML = endNote;
+    stopGrid.appendChild(en);
+  }
 
   // meal cards (lunch & dinner only)
   const mealGrid = document.getElementById('mealGrid');
