@@ -1,6 +1,6 @@
 // 皇城探祕記：明清時光機 — 簡易 Service Worker
 // 目的：讓瀏覽器判定這是一個「可安裝」的網頁應用（PWA），並提供基本離線快取
-const CACHE_NAME = 'hcts-cache-v3';
+const CACHE_NAME = 'hcts-cache-v5';
 const APP_SHELL = [
   './game.html',
   './index.html',

@@ -486,41 +486,31 @@ const PHOTO = {
 
 const DAYS = [
 {
-  id:1, label:"Day 1", short:"前門老街", color:"#9E2A2B",
-  title:"高雄 ✈ 澳門(香港) ✈ 北京｜前門老街風情",
-  center:[39.8975,116.3946], zoom:15,
-  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇", lat:39.8847,lng:116.3899,
-    desc:"今晚入住前門商圈附近的酒店，走路就能逛老北京商圈，晚上散步也很方便。（地圖位置為概略）"},
-  altHotel:{name:"沙河唯實國際文化交流中心", note:"備選飯店，位於昌平沙河高教園區", lat:40.0930,lng:116.2300, skipBounds:true,
-    desc:"若改住這一間，地點在北邊的昌平區，距離市區景點較遠，實際入住飯店請以旅行社通知為準。"},
-  breakfast:"今天集合搭機出發，機上或轉機期間無安排正式早餐，建議大家出發前先吃飽一點。",
+  id:1, label:"Day 1", short:"啟程・抵達北京", color:"#9E2A2B",
+  title:"10/20（二）高雄／台北 ✈ 香港 ✈ 北京",
+  center:[39.97,116.50], zoom:11,
+  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
+    desc:"今晚起連住四晚（10/20–10/23），走路就能到前門商圈，晚上散步也很方便。（地圖位置為概略）"},
+  breakfast:"今天兵分兩路出發：高雄出發的家人早上 08:45 在小港機場國泰航空櫃台集合；台北出發的從桃園機場第一航廈搭機。沒有安排早餐，建議出門前先吃飽一點。",
   meals:[
-    {type:"午餐", name:"機上套餐", lat:null,lng:null, desc:"轉機途中，在飛機上享用航空公司提供的套餐，輕鬆吃，準備迎接北京行！"},
-    {type:"晚餐", name:"東來順涮羊肉", lat:39.8990,lng:116.4030, desc:"北京百年老字號銅鍋涮肉，湯頭清澈、羊肉鮮嫩，沾上香濃的芝麻醬，是道地北京風味。"}
+    {type:"午餐", name:"機上享用", lat:null,lng:null, desc:"轉機途中，在國泰航空班機上享用航空公司提供的餐點，輕鬆吃，準備迎接北京行！"},
+    {type:"晚餐", name:"京知味", lat:null,lng:null, desc:"抵達北京後的第一頓晚餐，品嚐京味家常菜，為明天的故宮行程養足精神。"}
   ],
   stops:[
-    {name:"前門大街", lat:39.8975,lng:116.3928, img:IMG_PDF.qianmen, stay:"約90分鐘",
-      desc:"北京最有名的老商業街之一，就在天安門廣場南邊。街道兩旁都是古色古香的老建築，還有很多百年老店與特色小吃。"},
-    {name:"大柵欄（前門老街）", lat:39.8974,lng:116.3935, img:IMG_PDF.dashilan, stay:"約45分鐘",
-      desc:"一條保留清末民初風貌的老街，青石板路、有軌電車，還有全聚德、月盛齋等百年老字號，走在其中很有懷舊氣氛。"},
-    {name:"鮮魚口美食街", lat:39.8967,lng:116.3970, img:IMG_PDF.xianyukou, stay:"約40分鐘",
-      desc:"以「魚」為主題裝飾的美食街，紅燈籠高高掛，兩旁都是老字號小吃店，是品嚐北京傳統小吃的好地方。"},
-    {name:"北京坊", lat:39.8985,lng:116.3950, stay:"約40分鐘",
-      desc:"融合中西建築風格的時尚街區，白天古色古香，晚上則有現代化的燈光氣氛，中國最大的星巴克旗艦店也在這裡。"}
+    {name:"北京首都國際機場（抵達）", lat:40.0525,lng:116.6110, stay:"17:25 抵達",
+      desc:"【高雄出發】國泰航空 CX431 高雄 11:15 → 香港 13:00。【台北出發】國泰航空 CX489 桃園 T1 10:50 → 香港 13:00。大家在香港會合，一起轉搭 CX392 13:55 → 北京 17:25，抵達首都國際機場 T3 後與導遊會合，前往晚餐與飯店。託運行李每人限一件 23 公斤；行動電源請放在隨身行李。"}
   ]
 },
 {
   id:2, label:"Day 2", short:"故宮與中軸線", color:"#2B5F75",
-  title:"天安門廣場・故宮・什剎海・王府井",
-  center:[39.9169,116.3908], zoom:14,
-  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇", lat:39.8847,lng:116.3899,
+  title:"10/21（三）天安門・故宮・景山・王府井・天壇・雜技秀",
+  center:[39.905,116.40], zoom:13,
+  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
     desc:"連住第二晚，行李不用整理，輕鬆出發最重要！（地圖位置為概略）"},
-  altHotel:{name:"沙河唯實國際文化交流中心", note:"備選飯店，位於昌平沙河高教園區", lat:40.0930,lng:116.2300, skipBounds:true,
-    desc:"若改住這一間，地點在北邊的昌平區，距離市區景點較遠，實際入住飯店請以旅行社通知為準。"},
-  breakfast:"在飯店悠閒享用早餐，補足體力，準備展開豐富的一天。",
+  breakfast:"在飯店悠閒享用早餐，今天走的路最多，補足體力再出發。",
   meals:[
-    {type:"午餐", name:"怡和春天", lat:39.9070,lng:116.3980, desc:"北京風味合菜餐廳，多道熱炒輪番上桌，好吃又能大家一起分享。"},
-    {type:"晚餐", name:"大鴨梨風味", lat:39.9200,lng:116.4000, desc:"北京風味餐廳，招牌菜色豐富，忙碌一天後正好補充能量。"}
+    {type:"午餐", name:"渝信小廚", lat:null,lng:null, desc:"逛完故宮與景山後的午餐，川菜風味的合菜，多道熱炒輪番上桌，大家一起分享。"},
+    {type:"晚餐", name:"城南居", lat:null,lng:null, desc:"結束天壇行程後的晚餐，吃飽再去欣賞精彩的雜技表演。"}
   ],
   stops:[
     {name:"天安門廣場", lat:39.9042,lng:116.3915, img:IMG_PDF.tiananmen, stay:"約40分鐘",
@@ -528,51 +518,57 @@ const DAYS = [
     {name:"故宮博物院", lat:39.9169,lng:116.3908, special:"gugong", img:IMG_PDF.gugong, stay:"約150分鐘",
       desc:"明清兩代的皇宮，也是全世界規模最大、保存最完整的木造宮殿建築群，收藏無數珍貴文物。今天含神武門觀光擺渡巴士，走累了也不怕！",
       tag:"深度導覽"},
+    {name:"景山公園", lat:39.9236,lng:116.3906, img:PHOTO.jingshan, stay:"約40分鐘",
+      desc:"就在故宮北門（神武門）正對面，是明清兩代的皇家園林。山頂的萬春亭可以俯瞰整個故宮全景，剛逛完故宮馬上登高回望，是拍故宮全景的最佳地點。"},
+    {name:"王府井大街", lat:39.9112,lng:116.4053, img:IMG_PDF.wangfujing, stay:"約50分鐘",
+      desc:"北京最有名的百年商業街，全長約1.8公里，有「金街」美譽，日用百貨、老字號商店應有盡有，非常熱鬧。"},
+    {name:"天壇公園（含聯票）", lat:39.8822,lng:116.4066, img:IMG_PDF.tiantan, stay:"約70分鐘",
+      desc:"明清兩代皇帝祭天、祈穀、祈雨的地方，主要建築都是圓形的，呼應古人「天圓地方」的觀念。今天含聯票，可以進入祈年殿、回音壁、圜丘壇，祈年殿的藍色琉璃瓦屋頂非常壯觀。"},
+    {name:"雜技秀表演", lat:null,lng:null, stay:"約70分鐘",
+      desc:"晚餐後欣賞北京的雜技表演，把傳統雜技與現代舞台結合，每個動作都精準到位，展現令人稱奇的力與美，全程讓人目不暇給。（演出劇場依當地旅行社安排，地圖上不標示）"}
+  ]
+},
+{
+  id:3, label:"Day 3", short:"博物館・胡同・老街", color:"#4C7A5A",
+  title:"10/22（四）首都博物館・三里屯・什剎海・鐘鼓樓・前門老街",
+  center:[39.92,116.40], zoom:12,
+  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
+    desc:"連住第三晚，最後一站前門老街就在飯店附近，逛完走回去很近。（地圖位置為概略）"},
+  breakfast:"在飯店享用早餐，今天從博物館一路逛到胡同與老街，穿雙好走的鞋。",
+  meals:[
+    {type:"午餐", name:"老廣粵菜", lat:null,lng:null, desc:"廣東風味的午餐，口味清爽，換換口味。"},
+    {type:"晚餐", name:"東來順涮羊肉", lat:39.8990,lng:116.4030, desc:"北京百年老字號銅鍋涮肉，湯頭清澈、羊肉鮮嫩，沾上香濃的芝麻醬，是道地北京風味。逛完前門老街正好來吃。"}
+  ],
+  stops:[
+    {name:"首都博物館", lat:39.9050,lng:116.3360, img:PHOTO.shoudu, stay:"約90分鐘",
+      desc:"以宏偉的建築、豐富的展覽聞名，是與北京「歷史文化名城」地位相稱的大型現代化博物館，一早先來認識北京的歷史文化。"},
+    {name:"三里屯太古里", lat:39.9335,lng:116.4480, img:IMG_PDF.sanlitun, stay:"約60分鐘",
+      desc:"北京最時尚的休閒商圈之一，聚集了兩百多間商店與近七十間餐廳，白天晚上都很有活力。"},
     {name:"什剎海風景區", lat:39.9380,lng:116.3871, img:PHOTO.shichahai, stay:"約40分鐘",
       desc:"由前海、後海、西海三片湖泊組成，周邊還保留最完整的北京胡同文化，可以感受老北京悠閒的生活氣息。"},
     {name:"煙袋斜街", lat:39.9407,lng:116.3903, img:IMG_PDF.yandai, stay:"約30分鐘",
       desc:"一條像煙袋形狀的古老商業街，兩旁都是傳統四合院，是北京最古老的商業街兼文化街之一。"},
     {name:"鐘鼓樓", lat:39.9375,lng:116.3871, img:IMG_PDF.gulou, stay:"約30分鐘",
       desc:"位在北京中軸線最北端，是元、明、清三代的報時中心，兩座樓氣勢雄偉，是很有代表性的人文地標。"},
-    {name:"王府井大街", lat:39.9112,lng:116.4053, img:IMG_PDF.wangfujing, stay:"約50分鐘",
-      desc:"北京最有名的商業街之一，日用百貨、老字號商店應有盡有，晚上燈火通明，非常熱鬧。"}
-  ]
-},
-{
-  id:3, label:"Day 3", short:"祈福與胡同", color:"#4C7A5A",
-  title:"天壇・雍和宮・五道營胡同・三里屯",
-  center:[39.9277,116.4185], zoom:12,
-  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇", lat:39.8847,lng:116.3899,
-    desc:"連住第三晚，今天走的路線比較分散，晚上回到熟悉的飯店休息特別安心。（地圖位置為概略）"},
-  altHotel:{name:"沙河唯實國際文化交流中心", note:"備選飯店，位於昌平沙河高教園區", lat:40.0930,lng:116.2300, skipBounds:true,
-    desc:"若改住這一間，地點在北邊的昌平區，距離市區景點較遠，實際入住飯店請以旅行社通知為準。"},
-  breakfast:"在飯店享用早餐，補充體力應付今天的祈福與散步行程。",
-  meals:[
-    {type:"午餐", name:"中式合菜", lat:39.8850,lng:116.4090, desc:"就近安排中式合菜，多道菜色一起分享。"},
-    {type:"晚餐", name:"渝信小廚", lat:39.9350,lng:116.4500, desc:"三里屯一帶的風味餐廳，結束一天行程後好好吃頓晚餐。"}
-  ],
-  stops:[
-    {name:"天壇公園", lat:39.8822,lng:116.4066, img:IMG_PDF.tiantan, stay:"約70分鐘",
-      desc:"明清兩代皇帝祭天、祈穀、祈雨的地方，主要建築都是圓形的，呼應古人「天圓地方」的觀念，祈年殿的藍色琉璃瓦屋頂非常壯觀。"},
-    {name:"雍和宮", lat:39.9471,lng:116.4109, img:IMG_PDF.yonghegong, stay:"約60分鐘",
-      desc:"北京規模最大的藏傳佛寺，清朝時原是雍正皇帝登基前的住所，後來改建為佛寺，香火鼎盛，很多人會來這裡祈福。"},
-    {name:"五道營胡同", lat:39.9480,lng:116.4085, img:IMG_PDF.wudaoying, stay:"約40分鐘",
-      desc:"一條安靜悠閒的胡同小巷，兩旁都是特色小店，還有貓貓狗狗探頭迎接旅客，感受最真實的北京生活樣貌。"},
-    {name:"三里屯太古里", lat:39.9335,lng:116.4480, img:IMG_PDF.sanlitun, stay:"約60分鐘",
-      desc:"北京最時尚的休閒商圈之一，聚集了兩百多間商店與近七十間餐廳，白天晚上都很有活力。"}
+    {name:"前門大街", lat:39.8975,lng:116.3928, img:IMG_PDF.qianmen, stay:"約40分鐘",
+      desc:"北京最有名的老商業街之一，就在天安門廣場南邊。街道兩旁都是古色古香的老建築，還有很多百年老店與特色小吃。"},
+    {name:"大柵欄（前門老街）", lat:39.8974,lng:116.3935, img:IMG_PDF.dashilan, stay:"約30分鐘",
+      desc:"一條保留清末民初風貌的老街，青石板路、有軌電車，還有全聚德、月盛齋等百年老字號，走在其中很有懷舊氣氛。"},
+    {name:"鮮魚口美食街", lat:39.8967,lng:116.3970, img:IMG_PDF.xianyukou, stay:"約30分鐘",
+      desc:"以「魚」為主題裝飾的美食街，紅燈籠高高掛，兩旁都是老字號小吃店，是品嚐北京傳統小吃的好地方。"},
+    {name:"北京坊", lat:39.8985,lng:116.3950, stay:"約30分鐘",
+      desc:"融合中西建築風格的時尚街區，白天古色古香，晚上則有現代化的燈光氣氛，中國最大的星巴克旗艦店也在這裡。"}
   ]
 },
 {
   id:4, label:"Day 4", short:"皇家園林・奧運", color:"#6B4A7A",
-  title:"頤和園・圓明園・鳥巢・水立方",
+  title:"10/23（五）頤和園・圓明園・鳥巢・水立方・奧運博物館",
   center:[39.9972,116.3385], zoom:11,
-  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇", lat:39.8847,lng:116.3899,
-    desc:"逛完皇家園林與奧運公園，晚上一樣回到熟悉的酒店，不用再收拾行李。（地圖位置為概略）"},
-  altHotel:{name:"沙河唯實國際文化交流中心", note:"備選飯店，位於昌平沙河高教園區", lat:40.0930,lng:116.2300, skipBounds:true,
-    desc:"若改住這一間，地點在北邊的昌平區，距離市區景點較遠，實際入住飯店請以旅行社通知為準。"},
+  hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
+    desc:"連住第四晚，也是住前門的最後一晚，明天要換飯店，睡前記得先整理行李。（地圖位置為概略）"},
   breakfast:"在飯店吃飽早餐，今天要走的皇家園林腹地寬廣，體力要顧好。",
   meals:[
-    {type:"午餐", name:"老北京風味", lat:39.9990,lng:116.2800, desc:"頤和園附近安排老北京風味餐，體驗道地京味料理。"},
+    {type:"午餐", name:"惠豐堂", lat:null,lng:null, desc:"北京老字號餐廳，以魯菜、京味菜聞名，體驗道地的老北京口味。"},
     {type:"晚餐", name:"烤鴨風味", lat:39.9900,lng:116.3950, desc:"來北京怎麼能不吃烤鴨！皮脆肉嫩，配上蔥絲、甜麵醬與薄餅，是必嚐的經典美味。"}
   ],
   stops:[
@@ -587,39 +583,39 @@ const DAYS = [
   ]
 },
 {
-  id:5, label:"Day 5", short:"景山・長城", color:"#8B5E34",
-  title:"景山公園・慕田峪長城（含纜車）",
-  center:[40.18,116.48], zoom:9,
-  hotel:{name:"君和溫泉酒店", note:"順義區溫泉度假酒店", lat:40.1500,lng:116.9500,
-    desc:"今晚換一間有溫泉的度假酒店，可以泡個溫泉放鬆一下爬長城後的雙腿。（地圖位置為概略，實際地點以旅行社通知為準）"},
-  altHotel:{name:"臨空皇冠假日酒店", note:"順義天竺，鄰近首都機場", lat:40.0730,lng:116.5980, skipBounds:true,
-    desc:"若改住這一間，地點鄰近首都機場，隔天搭機會更加方便。"},
-  breakfast:"退房前在昨晚住的『北京前門富力智選酒店』享用早餐，今天要去爬長城，體力要準備好！",
+  id:5, label:"Day 5", short:"雍和宮・長城", color:"#8B5E34",
+  title:"10/24（六）雍和宮・五道營胡同・慕田峪長城（含纜車）",
+  center:[40.18,116.55], zoom:9,
+  hotel:{name:"北京君和豪生酒店", note:"順義區溫泉度假酒店｜☎ 010-52597066", lat:40.1299,lng:116.7660,
+    desc:"今晚換到順義的溫泉度假酒店，可以泡個溫泉放鬆一下爬長城後的雙腿。（地圖位置依飯店官網）"},
+  breakfast:"在『北京前門富力智選酒店』享用早餐後退房，今天要去爬長城，體力要準備好！",
   meals:[
-    {type:"午餐", name:"北京風味", lat:40.1500,lng:116.4700, desc:"前往長城途中安排北京風味合菜，補充體力再上山。"},
-    {type:"晚餐", name:"中式合菜", lat:40.1500,lng:116.9500, desc:"回到飯店附近享用中式合菜，好好犒賞今天辛苦爬長城的自己。"}
+    {type:"午餐", name:"漁家傲", lat:null,lng:null, desc:"前往長城前的午餐，吃飽補充體力再上山。"},
+    {type:"晚餐", name:"中式合菜", lat:null,lng:null, desc:"爬完長城後享用中式合菜，好好犒賞今天辛苦的自己。"}
   ],
   stops:[
-    {name:"景山公園", lat:39.9236,lng:116.3906, img:PHOTO.jingshan, stay:"約40分鐘",
-      desc:"位在北京城中軸線上，明清兩代的皇家園林，山頂的萬春亭可以俯瞰整個故宮全景，是拍攝故宮全景的最佳地點。"},
+    {name:"雍和宮", lat:39.9471,lng:116.4109, img:IMG_PDF.yonghegong, stay:"約60分鐘",
+      desc:"北京規模最大的藏傳佛寺，清朝時原是雍正皇帝登基前的住所，乾隆皇帝也在這裡出生，後來改建為佛寺，香火鼎盛，很多人會來這裡祈福。"},
+    {name:"五道營胡同", lat:39.9480,lng:116.4085, img:IMG_PDF.wudaoying, stay:"約40分鐘",
+      desc:"就在雍和宮旁邊，一條安靜悠閒的胡同小巷，兩旁都是特色小店，還有貓貓狗狗探頭迎接旅客，感受最真實的北京生活樣貌。"},
     {name:"慕田峪長城（含上下纜車）", lat:40.4380,lng:116.5619, img:IMG_PDF.changcheng, stay:"約150分鐘",
       desc:"萬里長城中風景最秀麗的一段，群山環抱、植被覆蓋率高達96%以上，有「萬里長城，慕田峪獨秀」的美譽。今天有纜車代步，不用擔心爬不動，可以輕鬆欣賞壯闊的長城美景。"}
   ]
 },
 {
-  id:6, label:"Day 6", short:"首都博物館・返程", color:"#9E2A2B",
-  title:"首都博物館 ✈ 澳門(香港) ✈ 高雄",
-  center:[39.9060,116.3390], zoom:12,
+  id:6, label:"Day 6", short:"賦歸", color:"#9E2A2B",
+  title:"10/25（日）北京 ✈ 香港 ✈ 高雄／台北",
+  center:[40.0525,116.6110], zoom:11,
   hotel:{name:"溫暖的家", note:"結束難忘的北京行，平安返抵家門", lat:22.6273,lng:120.3014, skipBounds:true,
-    desc:"今天搭機經澳門或香港轉機返回高雄，這趟難忘的北京慕田峪長城之旅，就在滿滿的回憶中畫下句點。"},
-  breakfast:"退房前在昨晚住的飯店（君和溫泉酒店／臨空皇冠假日酒店）享用早餐。",
+    desc:"帶著滿滿的回憶，在香港分頭轉機：高雄組飛回高雄、台北組飛回桃園，這趟難忘的北京慕田峪長城之旅就此畫下句點。"},
+  breakfast:"在『北京君和豪生酒店』享用早餐後退房。",
   meals:[
-    {type:"午餐", name:"中式合菜", lat:39.9050,lng:116.3360, desc:"參觀首都博物館後，享用中式合菜，準備前往機場。"},
-    {type:"晚餐", name:"機上簡餐", lat:null,lng:null, desc:"回程班機上的簡餐，帶著滿滿的回憶，飛回溫暖的家。"}
+    {type:"午餐", name:"北京風味", lat:null,lng:null, desc:"這趟旅程在北京的最後一餐，吃完就準備前往機場。"},
+    {type:"晚餐", name:"機上享用", lat:null,lng:null, desc:"回程班機上的餐點，帶著滿滿的回憶，飛回溫暖的家。"}
   ],
   stops:[
-    {name:"首都博物館", lat:39.9050,lng:116.3360, img:PHOTO.shoudu, stay:"約90分鐘",
-      desc:"以宏偉的建築、豐富的展覽聞名，是與北京「歷史文化名城」地位相稱的大型現代化博物館，是這趟旅程最後一個文化景點。"}
+    {name:"北京首都國際機場（搭機返台）", lat:40.0525,lng:116.6110, stay:"16:40 起飛",
+      desc:"大家一起搭國泰航空 CX331 北京 16:40 → 香港 20:25，在香港分頭轉機：【回高雄】CX448 21:40 → 高雄 23:10；【回台北】CX408 22:50 → 桃園 T1，隔天（10/26）00:35 抵達。登機前記得行動電源放隨身行李，新鮮水果與肉製品不可帶回台灣。"}
   ]
 }
 ];
@@ -883,9 +879,10 @@ function drawLeg(from, to, color){
 
 function drawRouteLegs(day){
   clearRouting();
-  for(let i=0;i<day.stops.length-1;i++){
-    const from = L.latLng(day.stops[i].lat, day.stops[i].lng);
-    const to = L.latLng(day.stops[i+1].lat, day.stops[i+1].lng);
+  const pinned = day.stops.filter(s=>s.lat!=null);
+  for(let i=0;i<pinned.length-1;i++){
+    const from = L.latLng(pinned[i].lat, pinned[i].lng);
+    const to = L.latLng(pinned[i+1].lat, pinned[i+1].lng);
     drawLeg(from, to, day.color);
   }
 }
@@ -954,6 +951,7 @@ function renderDay(){
 
   // stop markers — numbered pins (1,2,3…) so the visiting order is obvious at a glance
   day.stops.forEach((s,idx)=>{
+    if(s.lat==null) return;  // e.g. 雜技秀 — venue decided by the local agency, so no pin
     L.marker([s.lat,s.lng], {icon: numberedIcon(idx+1, day.color)})
       .addTo(markersLayer)
       .bindPopup(`<b>${idx+1}. ${s.name}</b>${s.stay?`<br>預計停留 ${s.stay}`:''}`)
@@ -963,11 +961,11 @@ function renderDay(){
 
   // fit map to show every marker (hotel + meals + stops), not just the route
   if(allMarkerLatLngs.length){
-    map.fitBounds(L.latLngBounds(allMarkerLatLngs), {padding:[36,36]});
+    map.fitBounds(L.latLngBounds(allMarkerLatLngs), {padding:[36,36], maxZoom:15});
   }
 
   // draw real driving routes leg-by-leg between stops, each with an arrow + drive-time chip
-  if(day.stops.length>1){ drawRouteLegs(day); }
+  if(day.stops.filter(s=>s.lat!=null).length>1){ drawRouteLegs(day); }
 
   // stop cards
   const stopGrid = document.getElementById('stopGrid');
