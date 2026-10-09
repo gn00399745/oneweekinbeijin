@@ -503,6 +503,7 @@ const DAYS = [
 },
 {
   id:2, label:"Day 2", short:"故宮與中軸線", color:"#2B5F75",
+  start:{name:"北京前門富力智選酒店", lat:39.8847,lng:116.3899},
   title:"10/21（三）天安門・故宮・景山・王府井・天壇・雜技秀",
   center:[39.905,116.40], zoom:13,
   hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
@@ -530,6 +531,7 @@ const DAYS = [
 },
 {
   id:3, label:"Day 3", short:"博物館・胡同・老街", color:"#4C7A5A",
+  start:{name:"北京前門富力智選酒店", lat:39.8847,lng:116.3899},
   title:"10/22（四）首都博物館・三里屯・什剎海・鐘鼓樓・前門老街",
   center:[39.92,116.40], zoom:12,
   hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
@@ -562,6 +564,7 @@ const DAYS = [
 },
 {
   id:4, label:"Day 4", short:"皇家園林・奧運", color:"#6B4A7A",
+  start:{name:"北京前門富力智選酒店", lat:39.8847,lng:116.3899},
   title:"10/23（五）頤和園・圓明園・鳥巢・水立方・奧運博物館",
   center:[39.9972,116.3385], zoom:11,
   hotel:{name:"北京前門富力智選酒店", note:"位於南緯路，鄰近前門、天壇｜☎ 010-83157777", lat:39.8847,lng:116.3899,
@@ -584,6 +587,7 @@ const DAYS = [
 },
 {
   id:5, label:"Day 5", short:"雍和宮・長城", color:"#8B5E34",
+  start:{name:"北京前門富力智選酒店", lat:39.8847,lng:116.3899},
   title:"10/24（六）雍和宮・五道營胡同・慕田峪長城（含纜車）",
   center:[40.18,116.55], zoom:9,
   hotel:{name:"北京君和豪生酒店", note:"順義區溫泉度假酒店｜☎ 010-52597066", lat:40.1299,lng:116.7660,
@@ -604,6 +608,7 @@ const DAYS = [
 },
 {
   id:6, label:"Day 6", short:"賦歸", color:"#9E2A2B",
+  start:{name:"北京君和豪生酒店", lat:40.1299,lng:116.7660},
   title:"10/25（日）北京 ✈ 香港 ✈ 高雄／台北",
   center:[40.0525,116.6110], zoom:11,
   hotel:{name:"溫暖的家", note:"結束難忘的北京行，平安返抵家門", lat:22.6273,lng:120.3014, skipBounds:true,
@@ -877,9 +882,16 @@ function drawLeg(from, to, color){
   );
 }
 
+// the day's route starts from the hotel where everyone slept last night (day.start),
+// then visits each pinned stop in order
+function routePoints(day){
+  const pts = day.stops.filter(s=>s.lat!=null);
+  return day.start ? [day.start, ...pts] : pts;
+}
+
 function drawRouteLegs(day){
   clearRouting();
-  const pinned = day.stops.filter(s=>s.lat!=null);
+  const pinned = routePoints(day);
   for(let i=0;i<pinned.length-1;i++){
     const from = L.latLng(pinned[i].lat, pinned[i].lng);
     const to = L.latLng(pinned[i+1].lat, pinned[i+1].lng);
@@ -938,6 +950,17 @@ function renderDay(){
     }
   });
 
+  // start-of-day hotel (last night's hotel) — pinned unless it is also tonight's hotel
+  if(day.start){
+    const same = hotelList.some(h=>h.lat===day.start.lat && h.lng===day.start.lng);
+    if(!same){
+      L.marker([day.start.lat, day.start.lng], {icon: iconFor('hotel', '#2B5F75')})
+        .addTo(markersLayer)
+        .bindPopup(`<b>🏨 出發：${day.start.name}</b>`);
+    }
+    allMarkerLatLngs.push(L.latLng(day.start.lat, day.start.lng));
+  }
+
   // meal markers (breakfast is never pinned — it's written into the hotel card)
   day.meals.forEach(m=>{
     if(m.lat){
@@ -965,11 +988,18 @@ function renderDay(){
   }
 
   // draw real driving routes leg-by-leg between stops, each with an arrow + drive-time chip
-  if(day.stops.filter(s=>s.lat!=null).length>1){ drawRouteLegs(day); }
+  if(routePoints(day).length>1){ drawRouteLegs(day); }
 
   // stop cards
   const stopGrid = document.getElementById('stopGrid');
   stopGrid.innerHTML='';
+  if(day.start){
+    const sn = document.createElement('div');
+    sn.className='breakfast-note';
+    sn.style.gridColumn='1 / -1'; sn.style.marginTop='0';
+    sn.innerHTML = `🏨 <b>出發：</b>早上從「${day.start.name}」出發，地圖上的路線從飯店開始。`;
+    stopGrid.appendChild(sn);
+  }
   day.stops.forEach((s,idx)=>{
     const c = chip(`<div class="card stop" style="--day-color:${day.color}">
       ${photoBlock(s.img, day.color)}
