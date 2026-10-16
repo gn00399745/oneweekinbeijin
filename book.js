@@ -361,8 +361,38 @@
     if (line) p.text(line, t.x + 1.4, t.y + t.h - 1.6, sz, SANS, 400, '#FFFFFF');
     p.text(attr, t.x + t.w - 1.2, t.y + t.h - 1.6, sz * 0.92, SANS, 700, '#FFE3A3', 'right');
   }
+  function isPeople(r) { return window.JournalAPI.peopleKind ? window.JournalAPI.peopleKind(r) === 'p' : false; }
+  // 有人物的照片給大格、風景照給小格：試遍各種分行方式與順序，挑「人物照面積最大、風景照較小、裁切最少」的排法
+  function justifyW(recs, X, Y, Wd, Hd, g) {
+    var n = recs.length, ars = recs.map(function (r) { return Math.max(0.5, Math.min(2.4, dims[r.id] || 1.33)); }), pe = recs.map(isPeople);
+    if (!pe.some(Boolean) || pe.every(Boolean) || n > 9) return justify(ars, X, Y, Wd, Hd, g);
+    var idx = recs.map(function (r, i) { return i; });
+    var orders = [idx, idx.slice().sort(function (a, b) { return (pe[b] - pe[a]) || a - b; }), idx.slice().sort(function (a, b) { return (pe[a] - pe[b]) || a - b; })];
+    var best = null;
+    orders.forEach(function (ord, oi) {
+      for (var mask = 0; mask < (1 << (n - 1)); mask++) {
+        var rows = [[ord[0]]];
+        for (var j = 1; j < n; j++) { if (mask & (1 << (j - 1))) rows.push([]); rows[rows.length - 1].push(ord[j]); }
+        if (rows.length > 4) continue;
+        var hs = rows.map(function (rw) { return (Wd - g * (rw.length - 1)) / rw.reduce(function (a, i) { return a + ars[i]; }, 0); });
+        var sumH = hs.reduce(function (a, b) { return a + b; }, 0), k = (Hd - g * (rows.length - 1)) / sumH;
+        if (k < 0.55 || k > 1.9) continue;
+        var score = Math.abs(Math.log(k)) * 3 + oi * 0.04;
+        rows.forEach(function (rw, ri) { if (rw.length > 4) score += 0.6; rw.forEach(function (i) { var a = (hs[ri] * ars[i]) * (hs[ri] * k) / (Wd * Hd); score += pe[i] ? -2.2 * a : 0.7 * a; }); });
+        if (!best || score < best.score) best = { score: score, rows: rows, hs: hs, k: k };
+      }
+    });
+    if (!best) return justify(ars, X, Y, Wd, Hd, g);
+    var tiles = [], y = Y;
+    best.rows.forEach(function (rw, ri) {
+      var h = best.hs[ri] * best.k, x = X, sum = rw.reduce(function (a, i) { return a + ars[i]; }, 0), avail = Wd - g * (rw.length - 1);
+      rw.forEach(function (i) { var w = avail * ars[i] / sum; tiles[i] = { x: x, y: y, w: w, h: h }; x += w + g; });
+      y += h + g;
+    });
+    return tiles;
+  }
   function mosaic(p, recs, imgs, X, Y, Wd, Hd, withPlace) {
-    var tiles = justify(recs.map(function (r) { return Math.max(0.5, Math.min(2.4, dims[r.id] || 1.33)); }), X, Y, Wd, Hd, 1.3);
+    var tiles = justifyW(recs, X, Y, Wd, Hd, 1.3);
     recs.forEach(function (r, i) { var t = tiles[i]; p.img(imgs[r.id], t.x, t.y, t.w, t.h); tileCaption(p, r, t, withPlace); });
   }
   function chunkPhotos(list, cap) {
@@ -397,7 +427,8 @@
         var its = items.filter(function (r) { return r.day === day.id; }).sort(A.byTime);
         if (!its.length) return;
         var dayPhotos = its.filter(A.isPhoto);
-        var hero = dayPhotos.filter(function (r) { return !used[r.id] && (size.land ? true : land(r)); })[0] || dayPhotos.filter(function (r) { return !used[r.id]; })[0] || null;
+        var free = dayPhotos.filter(function (r) { return !used[r.id]; });
+        var hero = free.filter(function (r) { return isPeople(r) && (size.land ? (dims[r.id] || 1) < 1.6 : land(r)); })[0] || free.filter(function (r) { return size.land ? true : land(r); })[0] || free[0] || null;
         if (hero) used[hero.id] = 1;
         var mealNames = day.meals.map(function (m) { return m.name; });
         var mealPh = dayPhotos.filter(function (r) { return !used[r.id] && mealNames.indexOf(r.place) >= 0; });
@@ -410,9 +441,10 @@
         var textSeq = function (g, spec, inlineN) {
           var s = [{ t: 'head', pl: g.pl, h: 11 }];
           if (g.info) s.push(Object.assign(noteItem({ id: 'info-' + day.id + g.pl.name, text: g.info, infoBox: true }, spec.cols > 1 && !g.photos.length ? 'all' : 1, spec), { label: '旅遊重點' }));
-          var inl = g.photos.slice(0, inlineN);
+          var inl = g.photos.slice().sort(function (a, b) { return (isPeople(b) - isPeople(a)) || A.byTime(a, b); }).slice(0, inlineN);
+          g.rest = g.photos.filter(function (r) { return inl.indexOf(r) < 0; });
           inl.concat(g.notes).sort(A.byTime).forEach(function (r, k) {
-            if (A.isPhoto(r)) { var span = (spec.cols > 1 && k === 0 && land(r) && g.photos.length >= 2) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
+            if (A.isPhoto(r)) { var span = (spec.cols > 1 && ((isPeople(r) && (dims[r.id] || 1.3) >= 0.9) || (k === 0 && land(r) && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
             else { var long = spec.cols > 1 && Array.from(r.text).length > 150; var ni = noteItem(r, long ? 'all' : 1, spec); ni.label = r.star ? '重點見聞' : 'Memo'; s.push(ni); }
           });
           return s;
@@ -420,7 +452,7 @@
         if (!size.land) {
           // 直式：兩欄拼貼（每個地點先放 2 張照片），其餘照片接在後面排成滿版照片牆
           var spec = { x0: 6, w: 88, cols: 2, gut: 4 }, seq = [], extra = {};
-          groups.forEach(function (g) { seq = seq.concat(textSeq(g, spec, 2)); if (g.photos.length > 2) extra[g.pl.name + '|' + g.pl.label] = g.photos.slice(2); });
+          groups.forEach(function (g) { seq = seq.concat(textSeq(g, spec, 2)); if (g.rest.length) extra[g.pl.name + '|' + g.pl.label] = g.rest; });
           var routeN = clamp(wrap(stopsLine(day), 3, SANS, 600, 86), 2).length, heroH = 0, dayPages = null;
           // 最後一頁只剩一點點時，把開場大照片縮小一些，避免浪費一頁
           [0.4, 0.31, 0.24].some(function (k) {
@@ -854,7 +886,7 @@
     }
     function drawCoverPick() {
       var ps = all.filter(function (r) { return A.isPhoto(r) && st.authors.indexOf(A.who(r)) >= 0; }).sort(A.byTime).slice(0, 60);
-      if (!ps.some(function (r) { return r.id === st.cover; })) st.cover = ps[0] ? ps[0].id : null;
+      if (!ps.some(function (r) { return r.id === st.cover; })) { var pp = ps.filter(function (r) { return A.peopleKind && A.peopleKind(r) === 'p'; }); st.cover = (pp[0] || ps[0] || {}).id || null; }
       K('cover').innerHTML = ps.length ? ps.map(function (r) { return '<button class="jr-thumb' + (r.id === st.cover ? ' sel' : '') + '" data-id="' + r.id + '" type="button"><img src="' + A.thumbURL(r) + '" alt=""><span class="jr-check" style="display:' + (r.id === st.cover ? 'flex' : 'none') + '">✓</span></button>'; }).join('') : '<div class="jr-hint">沒有照片，封面會用插畫</div>';
       Array.prototype.forEach.call(K('cover').querySelectorAll('.jr-thumb'), function (b) { b.onclick = function () { st.cover = b.dataset.id; drawCoverPick(); }; });
     }
@@ -888,7 +920,9 @@
     Q('x').onclick = function () { alive = false; v.classList.remove('show'); setTimeout(function () { urls.forEach(URL.revokeObjectURL); v.remove(); A.unlock(); }, 200); };
     Q('guide').onchange = function () { v.classList.toggle('guides', Q('guide').checked); };
     var allText = o.title + o.sub + o.authors.join('') + A.items().map(function (r) { return (r.text || '') + (r.note || '') + (r.place || ''); }).join('') + DAYS.map(function (d) { return d.short + d.label; }).join('');
-    ensureFonts(allText).then(function () { return build(o); }).then(function (b) {
+    var sel = A.items().filter(function (r) { return A.isPhoto(r) && o.authors.indexOf(A.who(r)) >= 0; });
+    var detect = A.detectPeople ? A.detectPeople(sel, function (i, n) { if (alive) Q('prog').textContent = '辨識合照與人物照片… ' + i + ' / ' + n; }).catch(function () { if (alive) Q('prog').textContent = '無法辨識人物（可能沒有網路），照片會以一般大小排版'; }) : Promise.resolve();
+    detect.then(function () { return ensureFonts(allText); }).then(function () { return build(o); }).then(function (b) {
       bk = b; if (!alive) return;
       Q('sum').innerHTML = '<b>' + A.esc(size.label) + '</b>・封面＋內頁 ' + bk.interior + ' 頁・300 dpi・四邊含 3 mm 出血';
       if (size.tt && bk.interior > 80) { Q('warn').style.display = ''; Q('warn').textContent = '內頁超過 80 頁，寫真本最多 80 頁；可以少收錄一些照片，或分成兩本。'; }

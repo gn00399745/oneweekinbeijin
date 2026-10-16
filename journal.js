@@ -455,7 +455,7 @@
     lb.innerHTML = '<div class="jr-lb-top"><button class="x" type="button" aria-label="關閉">✕</button><div class="count"></div><span style="width:46px"></span></div>' +
       '<div class="jr-lb-stage"><img alt=""><button class="jr-lb-nav prev" type="button" aria-label="上一張">‹</button><button class="jr-lb-nav next" type="button" aria-label="下一張">›</button></div>' +
       '<div class="jr-lb-info"><div class="place"></div><div class="note"></div><div class="meta"></div>' +
-      '<div class="jr-lb-actions"><button class="dl" type="button">⬇ 存原圖</button><button class="ed" type="button">✎ 說明</button><button class="rm" type="button">🗑</button></div>' +
+      '<div class="jr-lb-actions"><button class="dl" type="button">⬇ 存原圖</button><button class="ed" type="button">✎ 說明</button><button class="pp" type="button"></button><button class="rm" type="button">🗑</button></div>' +
       (isTouch ? '<div class="jr-lb-tip">在分享選單點「儲存影像」即可存到相簿，畫質與原圖相同</div>' : '') + '</div>';
     document.body.appendChild(lb); document.body.classList.add('jr-lock');
     requestAnimationFrame(function () { lb.classList.add('show'); });
@@ -470,7 +470,15 @@
       $('.meta', lb).textContent = ['📷 ' + who(r) + ' 拍', niceTime(r.takenAt), r.size ? mb(r.size) : ''].filter(Boolean).join('　·　');
       $('.prev', lb).style.visibility = idx > 0 ? '' : 'hidden'; $('.next', lb).style.visibility = idx < list.length - 1 ? '' : 'hidden';
       rm.classList.remove('armed'); rm.textContent = '🗑';
+      var pk = peopleKind(r);
+      $('.pp', lb).textContent = (r.peopleSet ? '' : '自動：') + (pk === 'p' ? '👨‍👩‍👧 人物照' : pk === 's' ? '🏞 風景照' : '❔ 未辨識');
     }
+    // 旅遊書裡人物照、合照會放大，風景照放小；可以手動切換
+    $('.pp', lb).onclick = function () {
+      var r = list[idx], cur2 = peopleKind(r), nextSet = cur2 === 'p' ? 's' : 'p';
+      var nr = Object.assign({}, r, { peopleSet: nextSet, localAddedAt: new Date().toISOString() });
+      dbPut([nr]).then(reload).then(function () { list[idx] = nr; show(); toast(nextSet === 'p' ? '設為人物照：旅遊書裡會放大' : '設為風景照：旅遊書裡會放小一點'); });
+    };
     function go(k) { var n = idx + k; if (n < 0 || n >= list.length) return; idx = n; show(); }
     function close() { lb.classList.remove('show'); document.removeEventListener('keydown', key); setTimeout(function () { if (cur) URL.revokeObjectURL(cur); lb.remove(); unlock(); }, 200); }
     function key(e) { if (document.querySelector('.jr-overlay')) return; if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'ArrowRight') go(1); }
@@ -511,7 +519,7 @@
   function metaOf(r) {
     var m = { id: r.id, kind: r.kind || 'photo', day: r.day, place: r.place, author: r.mine ? author() : r.author, takenAt: r.takenAt, addedAt: r.addedAt };
     if (isNote(r)) { m.text = r.text; m.star = !!r.star; if (r.editedAt) m.editedAt = r.editedAt; }
-    else { m.fp = r.fp; m.note = r.note; m.name = r.name; m.type = r.type; m.size = r.size; }
+    else { m.fp = r.fp; m.note = r.note; m.name = r.name; m.type = r.type; m.size = r.size; if (r.people) m.people = r.people; if (r.peopleSet) m.peopleSet = r.peopleSet; }
     return m;
   }
   function buildExport(recs, prog) {
@@ -618,7 +626,7 @@
         var blob; try { blob = dataURLToBlob(p.data); } catch (e) { skip++; return step(); }
         p.data = null;
         return makeThumb(blob).then(function (th) {
-          batch.push(Object.assign(base, { kind: 'photo', fp: String(p.fp || ''), note: String(p.note || ''), name: String(p.name || ''), type: blob.type, size: blob.size, blob: blob, thumb: th })); nPh++;
+          batch.push(Object.assign(base, { kind: 'photo', fp: String(p.fp || ''), note: String(p.note || ''), name: String(p.name || ''), type: blob.type, size: blob.size, blob: blob, thumb: th, people: p.people && typeof p.people === 'object' ? { n: +p.people.n || 0, max: +p.people.max || 0, sum: +p.people.sum || 0 } : undefined, peopleSet: p.peopleSet === 'p' || p.peopleSet === 's' ? p.peopleSet : undefined })); nPh++;
           return after();
         });
       };
@@ -641,7 +649,48 @@
     if (window.BookMaker) return window.BookMaker.open();
     toast('旅遊書元件載入中，請稍後再試');
   }
+  /* ---------------- 人物辨識（在手機上執行，照片不會上傳） ---------------- */
+  // 用 MediaPipe 物件偵測找出照片裡的「人」，記下人物佔畫面的比例；旅遊書據此把合照、人物照放大
+  function peopleKind(r) {
+    if (r.peopleSet === 'p' || r.peopleSet === 's') return r.peopleSet;
+    var q = r.people; if (!q) return '';
+    return (q.max >= 0.07 || (q.n >= 2 && q.sum >= 0.09)) ? 'p' : 's';
+  }
+  var MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  var MODEL = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite';
+  var detP = null;
+  function detector() {
+    if (!detP) detP = import(MP + '/vision_bundle.mjs').then(function (m) {
+      return m.FilesetResolver.forVisionTasks(MP + '/wasm').then(function (fs) {
+        return m.ObjectDetector.createFromOptions(fs, { baseOptions: { modelAssetPath: MODEL }, runningMode: 'IMAGE', scoreThreshold: 0.35, maxResults: 12, categoryAllowlist: ['person'] });
+      });
+    }).catch(function (e) { detP = null; throw e; });
+    return detP;
+  }
+  function detectPeople(recs, onProg) {
+    var todo = recs.filter(function (r) { return isPhoto(r) && !r.people && !r.peopleSet; });
+    if (!todo.length) return Promise.resolve(0);
+    return detector().then(function (det) {
+      var i = 0, done = [];
+      return new Promise(function (res) {
+        (function next() {
+          if (i >= todo.length) { dbPut(done).then(reload).then(function () { res(done.length); }, function () { res(done.length); }); return; }
+          var r = todo[i++];
+          createImageBitmap(r.thumb || r.blob).then(function (bm) {
+            var cv = document.createElement('canvas'), k = Math.min(1, 480 / Math.max(bm.width, bm.height));
+            cv.width = Math.round(bm.width * k); cv.height = Math.round(bm.height * k);
+            cv.getContext('2d').drawImage(bm, 0, 0, cv.width, cv.height); if (bm.close) bm.close();
+            var out = det.detect(cv), area = cv.width * cv.height, n = 0, mx = 0, sum = 0;
+            (out.detections || []).forEach(function (d) { var b = d.boundingBox; if (!b) return; var f = (b.width * b.height) / area; n++; sum += f; if (f > mx) mx = f; });
+            done.push(Object.assign({}, r, { people: { n: n, max: Math.round(mx * 1000) / 1000, sum: Math.round(Math.min(1, sum) * 1000) / 1000 } }));
+          }).catch(function () {}).then(function () { if (onProg) onProg(i, todo.length); setTimeout(next, 0); });
+        })();
+      });
+    });
+  }
+
   window.JournalAPI = {
+    peopleKind: peopleKind, detectPeople: detectPeople,
     items: function () { return ALL; }, groupsFor: groupsFor, placesOf: placesOf, placeTitle: placeTitle,
     isPhoto: isPhoto, isNote: isNote, who: who, byTime: byTime, dayById: dayById, dayDate: dayDate, tripRange: tripRange,
     authorsAll: authorsAll, thumbURL: tURL, saveFiles: saveFiles, toast: toast, openSheet: openSheet, unlock: unlock,

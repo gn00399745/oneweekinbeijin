@@ -327,3 +327,5 @@ body.jr-lock{ overflow:hidden; }
 /* 必填標示 */
 .jr-req{ display:inline-block; margin-left:6px; font-size:.72rem; font-weight:800; letter-spacing:0; color:#fff; background:var(--red); border-radius:999px; padding:1px 8px; vertical-align:1px; }
 .jr-input.jr-invalid{ border-color:var(--red); box-shadow:0 0 0 3px rgba(158,42,43,.18); }
+.jr-lb-actions .ed, .jr-lb-actions .pp{ background:rgba(255,255,255,.12); color:#fff; font-size:.9rem; }
+.jr-lb-actions .pp{ flex:1.3; }
