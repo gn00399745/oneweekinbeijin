@@ -13,6 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="皇城探祕記">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
+<link rel="stylesheet" href="journal.css">
 <style>
 :root{
   --ink:#2B221C;
@@ -401,6 +402,9 @@ footer .imperial-rule{margin-bottom:16px;}
 
   <div class="section-title"><span class="bead"></span>今晚住宿</div>
   <div class="grid" id="hotelGrid"></div>
+
+  <!-- 旅途相簿與見聞（journal.js） -->
+  <div id="journalMount"></div>
 
   <div class="gugong-btn-wrap" id="gugongEntry" style="display:none;">
     <button class="gugong-enter" id="gugongBtn">🏯 進入「故宮深度導覽」</button>
@@ -1079,6 +1083,7 @@ function renderDay(){
   const hasGugong = day.stops.some(s=>s.special==='gugong');
   document.getElementById('gugongEntry').style.display = hasGugong? 'block':'none';
   document.getElementById('gugongView').classList.remove('show');
+  if(window.Journal) Journal.onDay(day);
 }
 
 function renderDayNavActive(){
@@ -1105,6 +1110,7 @@ function openModal({title, loc, text, tags=[], gugong=false, img=null}){
   else { modalImg.style.display='none'; }
   document.getElementById('modalGugongBtn').style.display = gugong? 'inline-block':'none';
   document.getElementById('modalOverlay').classList.add('show');
+  if(window.Journal) Journal.onModal(title);
 }
 function closeModal(){ document.getElementById('modalOverlay').classList.remove('show'); }
 document.getElementById('modalClose').onclick = closeModal;
@@ -1270,6 +1276,8 @@ document.getElementById('backBtn').onclick = ()=>{
 initMap();
 renderAll();
 </script>
+<script src="journal.js"></script>
+<script src="book.js"></script>
 <script src="pwa.js"></script>
 </body>
 </html>

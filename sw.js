@@ -1,11 +1,14 @@
 // 皇城探祕記：明清時光機 — 簡易 Service Worker
 // 目的：讓瀏覽器判定這是一個「可安裝」的網頁應用（PWA），並提供基本離線快取
 // game.html 約 10MB，不在安裝時預先下載（會拖慢首頁），第一次進遊戲時才快取
-const CACHE_NAME = 'hcts-cache-v8';
+const CACHE_NAME = 'hcts-cache-v9';
 const APP_SHELL = [
   './index.html',
   './manifest.json',
   './pwa.js',
+  './journal.js',
+  './journal.css',
+  './book.js',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png'
@@ -34,7 +37,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return; // 不快取跨網域資源
 
   // 網頁本身（HTML）與 pwa.js 走「網路優先」：有網路就拿最新版，離線才用快取
-  const isPage = event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/pwa.js');
+  const isPage = event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/pwa.js') || url.pathname.endsWith('/journal.js') || url.pathname.endsWith('/journal.css') || url.pathname.endsWith('/book.js');
   if (isPage) {
     event.respondWith(
       fetch(event.request).then((networkResp) => {
