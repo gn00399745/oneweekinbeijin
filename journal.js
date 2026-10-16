@@ -183,7 +183,7 @@
     return '<div class="jr-label">哪一天</div><div class="jr-chips jr-days" data-k="days"></div><div class="jr-hint" data-k="dayhint"></div>' +
       '<div data-k="placewrap"><div class="jr-label">在哪裡</div><div class="jr-chips" data-k="places"></div>' +
       '<input class="jr-input" data-k="custom" placeholder="輸入地點，例如：南鑼鼓巷" style="display:none;margin-top:10px;"></div>' +
-      '<div class="jr-label">' + authorLabel + '</div><input class="jr-input" data-k="author" maxlength="12" placeholder="例如：媽媽、爸爸、欣維" value="' + esc(author()) + '">' +
+      '<div class="jr-label">' + authorLabel + ' <span class="jr-req">必填</span></div><input class="jr-input" data-k="author" maxlength="12" required placeholder="必填" value="' + esc(author()) + '">' +
       '<div class="jr-hint">旅遊書會在文字和照片後面標示是誰記錄的</div>';
   }
   function bindPicker(sheet, st) {
@@ -221,9 +221,10 @@
       });
     }
     K('custom').addEventListener('input', function (e) { st.place = e.target.value.trim(); });
+    K('author').addEventListener('input', function () { K('author').classList.remove('jr-invalid'); });
     return {
       redraw: function () { drawDays(); drawPlaces(); },
-      author: function () { var v = K('author').value.trim(); if (!v) { K('author').focus(); toast('請填上你的名字，旅遊書才知道是誰記錄的'); return null; } lsSet(LS_AUTHOR, v); return v; },
+      author: function () { var v = K('author').value.trim(); if (!v) { K('author').focus(); K('author').classList.add('jr-invalid'); toast('請填寫必填欄位'); return null; } lsSet(LS_AUTHOR, v); return v; },
       place: function () { return st.auto ? '' : (st.customOpen ? K('custom').value.trim() : st.place); }
     };
   }
