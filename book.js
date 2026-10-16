@@ -533,10 +533,24 @@
   }
   var JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
 
+  // 自己的紀錄平常不署名；做書前若還沒填過名字，先問一次
+  function askName() {
+    var A = window.JournalAPI;
+    var sh = A.openSheet('你的名字', '<div class="jr-label" style="margin-top:4px">你的名字 <span class="jr-req">必填</span></div><input class="jr-input" data-k="me" maxlength="12" placeholder="必填">' +
+      '<div class="jr-hint">會標示在你拍的照片和寫的見聞上（旅遊書裡的「誰拍／誰說」）</div><div class="jr-actions"><button class="jr-btn gold" data-k="ok" type="button">下一步</button></div>');
+    var inp = sh.querySelector('[data-k="me"]');
+    inp.addEventListener('input', function () { inp.classList.remove('jr-invalid'); });
+    sh.querySelector('[data-k="ok"]').onclick = function () {
+      var v = inp.value.trim(); if (!v) { inp.classList.add('jr-invalid'); inp.focus(); A.toast('請填寫必填欄位'); return; }
+      A.lsSet('bjj-author', v); sh.close(); setTimeout(openSetup, 220);
+    };
+  }
   function openSetup() {
     var A = window.JournalAPI, all = A.items();
     if (!all.length) { A.toast('還沒有任何紀錄，先拍照或寫見聞吧'); return; }
-    var names = A.authorsAll(), esc = A.esc;
+    var esc = A.esc, hasMine = all.some(function (r) { return r.mine; });
+    if (hasMine && !A.lsGet('bjj-author', '')) { askName(); return; }
+    var names = A.authorsAll();
     var st = { size: A.lsGet(LS_SIZE, 's'), pad: true, cover: null, authors: names.slice() };
     var html =
       '<div class="jr-label" style="margin-top:4px">書名</div><input class="jr-input" data-k="title" maxlength="24" value="' + esc(A.lsGet('bjj-book-title', '相約北京・六日遊記')) + '">' +

@@ -32,7 +32,8 @@
   DAYS.forEach(function (d) { var m = String(d.title || '').match(/(\d{1,2})\/(\d{1,2})/); if (m) DATE2DAY[TRIP_YEAR + '-' + pad(+m[1]) + '-' + pad(+m[2])] = d.id; });
   function isPhoto(r) { return r.kind !== 'note'; }
   function isNote(r) { return r.kind === 'note'; }
-  function who(r) { return r.author || '未署名'; }
+  // 自己的紀錄（mine）不必每次署名，名字在匯出 JSON 時才填，並套用到所有自己的紀錄
+  function who(r) { return r.mine ? (author() || '我') : (r.author || '未署名'); }
 
   /* ---------------- IndexedDB ---------------- */
   var dbp = null;
@@ -110,7 +111,7 @@
   function fileName(r, i) {
     var ext = EXT[r.type] || ((r.name || '').split('.').pop() || 'jpg').toLowerCase();
     var time = (r.takenAt || '').replace(/[-: ]/g, '').slice(4, 12);
-    return ['北京', 'Day' + r.day, safe(r.place), safe(r.author), time || String(i + 1)].filter(Boolean).join('_') + '.' + ext;
+    return ['北京', 'Day' + r.day, safe(r.place), safe(r.mine ? author() : r.author), time || String(i + 1)].filter(Boolean).join('_') + '.' + ext;
   }
   function downloadFiles(files) {
     files.forEach(function (f, i) {
@@ -183,8 +184,7 @@
     return '<div class="jr-label">哪一天</div><div class="jr-chips jr-days" data-k="days"></div><div class="jr-hint" data-k="dayhint"></div>' +
       '<div data-k="placewrap"><div class="jr-label">在哪裡</div><div class="jr-chips" data-k="places"></div>' +
       '<input class="jr-input" data-k="custom" placeholder="輸入地點，例如：南鑼鼓巷" style="display:none;margin-top:10px;"></div>' +
-      '<div class="jr-label">' + authorLabel + ' <span class="jr-req">必填</span></div><input class="jr-input" data-k="author" maxlength="12" required placeholder="必填" value="' + esc(author()) + '">' +
-      '<div class="jr-hint">旅遊書會在文字和照片後面標示是誰記錄的</div>';
+      '';
   }
   function bindPicker(sheet, st) {
     var K = function (k) { return sheet.querySelector('[data-k="' + k + '"]'); };
@@ -221,10 +221,8 @@
       });
     }
     K('custom').addEventListener('input', function (e) { st.place = e.target.value.trim(); });
-    K('author').addEventListener('input', function () { K('author').classList.remove('jr-invalid'); });
     return {
       redraw: function () { drawDays(); drawPlaces(); },
-      author: function () { var v = K('author').value.trim(); if (!v) { K('author').focus(); K('author').classList.add('jr-invalid'); toast('請填寫必填欄位'); return null; } lsSet(LS_AUTHOR, v); return v; },
       place: function () { return st.auto ? '' : (st.customOpen ? K('custom').value.trim() : st.place); }
     };
   }
@@ -272,7 +270,6 @@
     pk.redraw(); readDates();
 
     saveBtn.onclick = function () {
-      var name = pk.author(); if (name == null) return;
       var note = sheet.querySelector('[data-k="note"]').value.trim(), place = pk.place();
       saveBtn.disabled = true;
       var recs = [], i = 0, now = new Date().toISOString(), have = {}, dup = 0;
@@ -297,7 +294,7 @@
         have[fp] = 1;
         var day = st.auto ? (DATE2DAY[taken.slice(0, 10)] || curDay().id) : st.day;
         makeThumb(f).then(function (th) {
-          recs.push({ id: uid('p'), kind: 'photo', fp: fp, day: day, place: place, note: note, author: name, takenAt: taken, addedAt: now, localAddedAt: now, name: f.name, type: f.type || 'image/jpeg', size: f.size, blob: f, thumb: th });
+          recs.push({ id: uid('p'), kind: 'photo', fp: fp, day: day, place: place, note: note, author: '', mine: true, takenAt: taken, addedAt: now, localAddedAt: now, name: f.name, type: f.type || 'image/jpeg', size: f.size, blob: f, thumb: th });
           next();
         });
       })();
@@ -316,14 +313,12 @@
     var sheet = openSheet(r ? '修改見聞' : '寫下見聞', html);
     var pk = bindPicker(sheet, st); pk.redraw();
     var starBtn = sheet.querySelector('[data-k="star"]'); starBtn.onclick = function () { starBtn.classList.toggle('on'); };
-    if (r) sheet.querySelector('[data-k="author"]').value = r.author || '';
     var ta = sheet.querySelector('[data-k="text"]'); if (!r) setTimeout(function () { ta.focus(); }, 250);
     sheet.querySelector('[data-k="save"]').onclick = function () {
       var text = ta.value.trim(); if (!text) { ta.focus(); toast('先寫點什麼吧'); return; }
-      var name = r ? (sheet.querySelector('[data-k="author"]').value.trim() || r.author) : pk.author(); if (name == null) return;
       var now = new Date().toISOString();
-      var rec = r ? Object.assign({}, r, { text: text, author: name, day: st.day, place: pk.place(), star: starBtn.classList.contains('on'), editedAt: now, localAddedAt: now })
-        : { id: uid('n'), kind: 'note', day: st.day, place: pk.place(), star: starBtn.classList.contains('on'), text: text, author: name, takenAt: localStamp(new Date()), addedAt: now, localAddedAt: now };
+      var rec = r ? Object.assign({}, r, { text: text, day: st.day, place: pk.place(), star: starBtn.classList.contains('on'), editedAt: now, localAddedAt: now })
+        : { id: uid('n'), kind: 'note', day: st.day, place: pk.place(), star: starBtn.classList.contains('on'), text: text, author: '', mine: true, takenAt: localStamp(new Date()), addedAt: now, localAddedAt: now };
       dbPut([rec]).then(reload).then(function () { sheet.close(); refresh(); toast(r ? '已更新' : '已記下這段見聞'); }).catch(function () { toast('儲存失敗，請再試一次'); });
     };
     var del = sheet.querySelector('[data-k="del"]');
@@ -363,7 +358,7 @@
   function placeTitle(pl) { return pl.kind === 'stop' || pl.kind === 'custom' || pl.kind === 'none' ? pl.label.replace(/^\d+\. /, '') : pl.name; }
   function thumbHTML(r) {
     return '<button class="jr-thumb' + (selected[r.id] ? ' sel' : '') + '" data-id="' + r.id + '" type="button"><img src="' + tURL(r) + '" alt="" loading="lazy" decoding="async">' +
-      (r.author ? '<span class="who">' + esc(r.author) + '</span>' : '') + (r.note ? '<span class="note-dot">✎</span>' : '') + '<span class="jr-check">✓</span></button>';
+      ((r.author || (r.mine && author())) ? '<span class="who">' + esc(who(r)) + '</span>' : '') + (r.note ? '<span class="note-dot">✎</span>' : '') + '<span class="jr-check">✓</span></button>';
   }
   function noteHTML(r) {
     return '<button class="jr-note' + (r.star ? ' star' : '') + '" data-nid="' + r.id + '" type="button"><span class="q">' + (r.star ? '<b class="jr-star">★ 重點</b>' : '') + esc(r.text) + '</span><span class="by">— ' + esc(who(r)) + (hhmm(r.takenAt) ? '・' + hhmm(r.takenAt) : '') + '</span></button>';
@@ -514,7 +509,7 @@
     return new Blob([u], { type: type });
   }
   function metaOf(r) {
-    var m = { id: r.id, kind: r.kind || 'photo', day: r.day, place: r.place, author: r.author, takenAt: r.takenAt, addedAt: r.addedAt };
+    var m = { id: r.id, kind: r.kind || 'photo', day: r.day, place: r.place, author: r.mine ? author() : r.author, takenAt: r.takenAt, addedAt: r.addedAt };
     if (isNote(r)) { m.text = r.text; m.star = !!r.star; if (r.editedAt) m.editedAt = r.editedAt; }
     else { m.fp = r.fp; m.note = r.note; m.name = r.name; m.type = r.type; m.size = r.size; }
     return m;
@@ -542,6 +537,8 @@
     var html =
       '<div class="jr-statrow"><div class="jr-statbox"><b>' + ph.length + '</b><span>照片</span></div><div class="jr-statbox"><b>' + (ALL.length - ph.length) + '</b><span>見聞</span></div><div class="jr-statbox"><b>' + mb(total) + '</b><span>原圖大小</span></div></div>' +
       '<div class="jr-card"><h4>📤 分享給家人朋友</h4><p>把照片和見聞打包成一個 JSON 檔，用 LINE、AirDrop 或 Email 傳出去。檔案裡是原始照片，畫質不會變差。' + (last ? '<br>上次分享：' + niceTime(localStamp(new Date(last))) : '') + '</p>' +
+      '<div class="jr-label" style="margin-top:0">你的名字 <span class="jr-req">必填</span></div><input class="jr-input" data-k="me" maxlength="12" placeholder="必填" value="' + esc(author()) + '">' +
+      '<div class="jr-hint" style="margin-bottom:12px">會標示在你拍的照片和寫的見聞上（旅遊書裡的「誰拍／誰說」）</div>' +
       '<button class="jr-btn gold block" data-x="fresh" type="button"' + (fresh.length ? '' : ' disabled') + '>🆕 只分享新增的（' + nf + ' 張照片、' + nn + ' 則見聞）</button>' +
       '<button class="jr-btn block" data-x="all" type="button"' + (ALL.length ? '' : ' disabled') + '>📦 分享全部紀錄</button>' +
       '<div data-k="out"></div></div>' +
@@ -552,7 +549,11 @@
     var K = function (k) { return sheet.querySelector('[data-k="' + k + '"]'); };
     if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(function (e) { if (e && e.quota) K('quota').textContent = '這個瀏覽器還能存放約 ' + mb(Math.max(0, e.quota - e.usage)); }).catch(function () {});
 
+    K('me').addEventListener('input', function () { K('me').classList.remove('jr-invalid'); });
     function doExport(recs, label) {
+      var me = K('me').value.trim();
+      if (!me) { K('me').classList.add('jr-invalid'); K('me').focus(); toast('請填寫必填欄位'); return; }
+      lsSet(LS_AUTHOR, me); refresh();
       var out = K('out');
       $$('[data-x="fresh"],[data-x="all"]', sheet).forEach(function (b) { b.disabled = true; });
       out.innerHTML = '<div class="jr-hint" style="margin-top:12px;">打包中… <span data-k="pct">0</span> / ' + recs.length + '</div><div class="jr-progress"><i></i></div>';
