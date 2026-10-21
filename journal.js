@@ -477,7 +477,7 @@
     $('.pp', lb).onclick = function () {
       var r = list[idx], cur2 = peopleKind(r), nextSet = cur2 === 'p' ? 's' : 'p';
       var nr = Object.assign({}, r, { peopleSet: nextSet, localAddedAt: new Date().toISOString() });
-      dbPut([nr]).then(reload).then(function () { list[idx] = nr; show(); toast(nextSet === 'p' ? '設為人物照：旅遊書裡會放大' : '設為風景照：旅遊書裡會放小一點'); });
+      dbPut([nr]).then(reload).then(function () { list[idx] = nr; show(); refresh(); toast(nextSet === 'p' ? '設為人物照：旅遊書裡會放大' : '設為風景照：旅遊書裡會放小一點'); }).catch(function () { toast('儲存失敗，請再試一次'); });
     };
     function go(k) { var n = idx + k; if (n < 0 || n >= list.length) return; idx = n; show(); }
     function close() { lb.classList.remove('show'); document.removeEventListener('keydown', key); setTimeout(function () { if (cur) URL.revokeObjectURL(cur); lb.remove(); unlock(); }, 200); }
@@ -490,7 +490,7 @@
       var sh = openSheet('照片說明', '<textarea class="jr-textarea" data-k="t" placeholder="這張照片想說的話">' + esc(r.note || '') + '</textarea><div class="jr-actions"><button class="jr-btn primary" data-k="s" type="button">儲存</button></div>');
       sh.querySelector('[data-k="s"]').onclick = function () {
         var nr = Object.assign({}, r, { note: sh.querySelector('[data-k="t"]').value.trim(), localAddedAt: new Date().toISOString() });
-        dbPut([nr]).then(reload).then(function () { list[idx] = nr; sh.close(); show(); refresh(); });
+        dbPut([nr]).then(reload).then(function () { list[idx] = nr; sh.close(); show(); refresh(); toast('已更新說明'); }).catch(function () { toast('儲存失敗，請再試一次'); });
       };
     };
     rm.onclick = function () {

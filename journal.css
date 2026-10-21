@@ -119,7 +119,7 @@
 
 /* bottom sheet */
 .jr-overlay{
-  position:fixed; inset:0; z-index:1500; background:rgba(20,14,10,.55);
+  position:fixed; inset:0; z-index:2500; background:rgba(20,14,10,.55);
   display:flex; align-items:flex-end; justify-content:center;
   opacity:0; transition:opacity .2s ease;
 }
@@ -329,3 +329,5 @@ body.jr-lock{ overflow:hidden; }
 .jr-input.jr-invalid{ border-color:var(--red); box-shadow:0 0 0 3px rgba(158,42,43,.18); }
 .jr-lb-actions .ed, .jr-lb-actions .pp{ background:rgba(255,255,255,.12); color:#fff; font-size:.9rem; }
 .jr-lb-actions .pp{ flex:1.3; }
+/* 看照片或開面板時，隱藏「加入主畫面」提示，避免擋住按鈕 */
+body.jr-lock .hcts-install{ display:none !important; }
