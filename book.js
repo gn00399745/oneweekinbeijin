@@ -189,7 +189,10 @@
   function who(r) { return window.JournalAPI.who(r); }
   function attrCol(r) { return colorOf[who(r)] || C.red; }
   var PF = 1.3, CAP = 6.2;      // 拍立得邊框、下緣說明高度
-  function capLines(r, w) { return r.note ? clamp(wrap(r.note, 2.3, SANS, 400, w - textW('（' + who(r) + ' 拍）', 2.1, SANS, 700) - 1), 1) : []; }
+  // 照片說明：同一段文字只出現一次；放得下一行的寫在照片上，太長的改成「照片說明」卡片放在文字區，完整顯示
+  var capMode = {};
+  function capText(r) { return capMode[r.id] === 'show' ? r.note : ''; }
+  function capLines(r, w) { var t = capText(r); return t ? clamp(wrap(t, 2.3, SANS, 400, w - textW('（' + who(r) + ' 拍）', 2.1, SANS, 700) - 1), 1) : []; }
   // 拍立得：白框＋下緣寫說明與「誰拍」，可傾斜、貼紙膠帶
   function polaroid(p, img, r, x, y, w, h, rot, tapeCol) {
     var cx = x + w / 2, cy = y + h / 2;
@@ -216,7 +219,7 @@
       p.text(label, x + w / 2, y + 6.1, 3.1, r.infoBox ? SANS : HAND, 700, r.infoBox ? C.oliveD : star ? C.red : '#6E5B45', 'center');
       p.rect(x + 2.5, y + 7.2, w - 5, 0.18, star ? 'rgba(178,58,48,.45)' : C.kraftD);
       p.lines(it.lines, x + 3, y + 7.4 + NL * 0.82, NS, NL, SANS, 400, C.ink);
-      if (it.attr && !r.infoBox) p.text('（' + who(r) + ' 說）', x + w - 3, y + h - 2.1, 2.3, SANS, 700, attrCol(r), 'right');
+      if (it.attr && !r.infoBox) p.text('（' + who(r) + (r.capCard ? ' 拍）' : ' 說）'), x + w - 3, y + h - 2.1, 2.3, SANS, 700, attrCol(r), 'right');
       if (star && !it.cont) {
         p.rot(x + w - 4.5, y + 4.2, 0.18, function () {
           c.strokeStyle = C.red; c.lineWidth = p.L(0.35); c.beginPath(); c.arc(p.P(x + w - 4.5), p.PY(y + 4.2), p.L(3.3), 0, Math.PI * 2); c.stroke();
@@ -352,7 +355,7 @@
   }
   // 照片牆上的說明：照片下緣漸層＋白字（說明（誰 拍））
   function tileCaption(p, r, t, withPlace) {
-    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = [withPlace ? r.place : '', r.note].filter(Boolean).join('｜');
+    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = [withPlace ? r.place : '', capText(r)].filter(Boolean).join('｜');
     var sz = Math.min(2.4, Math.max(1.8, t.w / 18)), aw = textW(attr, sz * 0.92, SANS, 700);
     var g = c.createLinearGradient(0, p.PY(t.y + t.h - 7), 0, p.PY(t.y + t.h));
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
@@ -434,9 +437,19 @@
         var mealPh = dayPhotos.filter(function (r) { return !used[r.id] && mealNames.indexOf(r.place) >= 0; });
         var foodPages = [], foodCap = size.land ? 6 : 6;
         if (mealPh.length >= 4) { chunkPhotos(mealPh, foodCap).forEach(function (ch) { foodPages.push({ t: 'food', day: day, photos: ch }); }); mealPh.forEach(function (r) { used[r.id] = 1; }); }
+        var seenCap = {};
+        its.filter(A.isPhoto).forEach(function (r) {
+          var t = String(r.note || '').trim();
+          if (!t || seenCap[t]) { capMode[r.id] = 'hide'; return; }
+          seenCap[t] = 1;
+          capMode[r.id] = Array.from(t).length <= 11 && t.indexOf('\n') < 0 ? 'show' : 'card';
+        });
         var groups = A.groupsFor(day, its).map(function (g) {
           return { pl: { name: g.place.name, label: A.placeTitle(g.place), kind: g.place.kind, n: g.place.n }, info: g.place.name ? infoOf(day, g.place.name) : '',
-            photos: g.items.filter(function (r) { return A.isPhoto(r) && !used[r.id]; }), notes: g.items.filter(A.isNote) };
+            photos: g.items.filter(function (r) { return A.isPhoto(r) && !used[r.id]; }),
+            notes: g.items.filter(A.isNote).concat(g.items.filter(function (r) { return A.isPhoto(r) && capMode[r.id] === 'card'; }).map(function (r) {
+              return { id: 'cap-' + r.id, kind: 'note', capCard: true, text: r.note, author: r.author, mine: r.mine, takenAt: r.takenAt, addedAt: r.addedAt, day: r.day, place: r.place };
+            })).sort(A.byTime) };
         }).filter(function (g) { return g.photos.length || g.notes.length; });
         var textSeq = function (g, spec, inlineN) {
           var s = [{ t: 'head', pl: g.pl, h: 11 }];
@@ -445,7 +458,7 @@
           g.rest = g.photos.filter(function (r) { return inl.indexOf(r) < 0; });
           inl.concat(g.notes).sort(A.byTime).forEach(function (r, k) {
             if (A.isPhoto(r)) { var span = (spec.cols > 1 && ((isPeople(r) && (dims[r.id] || 1.3) >= 0.9) || (k === 0 && land(r) && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
-            else { var long = spec.cols > 1 && Array.from(r.text).length > 150; var ni = noteItem(r, long ? 'all' : 1, spec); ni.label = r.star ? '重點見聞' : 'Memo'; s.push(ni); }
+            else { var long = spec.cols > 1 && Array.from(r.text).length > 150; var ni = noteItem(r, long ? 'all' : 1, spec); ni.label = r.capCard ? '照片說明' : r.star ? '重點見聞' : 'Memo'; s.push(ni); }
           });
           return s;
         };
@@ -738,7 +751,7 @@
       var x = 6 + (i % cols) * (cw + gap), y = gy + Math.floor(i / cols) * (ch + gap);
       p.shadow(true, 1, 0.3); p.rect(x, y, cw, ch, '#EFE6D6'); p.shadow(false);
       p.img(imgs[r.id], x + 1.6, y + 1.6, cw - 3.2, ch - 9);
-      var cap = [r.place, r.note].filter(Boolean).join('｜');
+      var cap = [r.place, capText(r)].filter(Boolean).join('｜');
       p.text(clamp(wrap(cap, 2.3, SANS, 400, cw - 6 - textW('（' + who(r) + ' 拍）', 2.1, SANS, 700)), 1)[0], x + 2, y + ch - 3.4, 2.3, SANS, 400, C.ink);
       p.text('（' + who(r) + ' 拍）', x + cw - 2, y + ch - 3.4, 2.1, SANS, 700, attrCol(r), 'right');
     });

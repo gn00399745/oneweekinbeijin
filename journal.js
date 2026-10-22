@@ -244,7 +244,7 @@
     var items = files.map(function (f) { return { file: f, url: URL.createObjectURL(f), taken: null }; });
     var st = { day: p && p.day ? p.day : curDay().id, place: p && p.place ? p.place : '', auto: false, autoDays: null };
     var html = '<div class="jr-previews" data-k="prev"></div>' + pickerHTML('拍攝者') +
-      '<div class="jr-label">照片說明（可不填）</div><textarea class="jr-textarea" data-k="note" placeholder="這張照片想說的話：天氣、心情、好吃的…"></textarea>' +
+      '<div class="jr-label">照片說明（可不填）</div><textarea class="jr-textarea" data-k="note" placeholder="這組照片想說的話：天氣、心情、好吃的…"></textarea><div class="jr-hint">一次選多張時，說明只會記一次</div>' +
       '<div class="jr-actions"><button class="jr-btn primary" data-k="save" type="button">儲存</button></div>' +
       '<div class="jr-hint" style="text-align:center;margin-top:10px;">照片以原始畫質保存在這支手機的瀏覽器裡</div>';
     var sheet = openSheet('新增照片', html, function () { items.forEach(function (it) { URL.revokeObjectURL(it.url); }); });
@@ -294,7 +294,7 @@
         have[fp] = 1;
         var day = st.auto ? (DATE2DAY[taken.slice(0, 10)] || curDay().id) : st.day;
         makeThumb(f).then(function (th) {
-          recs.push({ id: uid('p'), kind: 'photo', fp: fp, day: day, place: place, note: note, author: '', mine: true, takenAt: taken, addedAt: now, localAddedAt: now, name: f.name, type: f.type || 'image/jpeg', size: f.size, blob: f, thumb: th });
+          recs.push({ id: uid('p'), kind: 'photo', fp: fp, day: day, place: place, note: recs.length ? '' : note, author: '', mine: true, takenAt: taken, addedAt: now, localAddedAt: now, name: f.name, type: f.type || 'image/jpeg', size: f.size, blob: f, thumb: th });
           next();
         });
       })();
