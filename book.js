@@ -88,11 +88,33 @@
       return Math.ceil(chars.length / per);
     };
     // 照片：裁切填滿；fit = true 時完整顯示
-    p.img = function (img, x, y, w, h, fit) {
+    // 照片一律完整顯示、絕不裁切；框的比例和照片不同時，空出來的地方用同一張照片的柔焦放大當底
+    p.img = function (img, x, y, w, h) {
       if (!img) { p.rect(x, y, w, h, C.sand); return; }
-      var iw = img.width, ih = img.height, k = fit ? Math.min(L(w) / iw, L(h) / ih) : Math.max(L(w) / iw, L(h) / ih), dw = iw * k, dh = ih * k;
+      var iw = img.width, ih = img.height, k = Math.min(L(w) / iw, L(h) / ih), dw = iw * k, dh = ih * k;
       c.save(); c.beginPath(); c.rect(P(x), PY(y), L(w), L(h)); c.clip();
+      if (Math.abs(dw - L(w)) > 1.5 || Math.abs(dh - L(h)) > 1.5) {
+        var sm = document.createElement('canvas'), q = 24 / Math.max(iw, ih); sm.width = Math.max(2, Math.round(iw * q)); sm.height = Math.max(2, Math.round(ih * q));
+        sm.getContext('2d').drawImage(img, 0, 0, sm.width, sm.height);
+        var kc = Math.max(L(w) / iw, L(h) / ih) * 1.15, cw2 = iw * kc, ch2 = ih * kc;
+        c.imageSmoothingEnabled = true; c.drawImage(sm, P(x) + (L(w) - cw2) / 2, PY(y) + (L(h) - ch2) / 2, cw2, ch2);
+        c.fillStyle = 'rgba(255,255,255,.18)'; c.fillRect(P(x), PY(y), L(w), L(h));
+      }
       c.drawImage(img, P(x) + (L(w) - dw) / 2, PY(y) + (L(h) - dh) / 2, dw, dh);
+      c.restore();
+    };
+    // 滿版照片：柔焦底鋪滿含出血的外框，清楚的照片完整放在裁切線以內，裁切時不會切到人臉
+    p.imgSafe = function (img, ox, oy, ow, oh, ix, iy, iw2, ih2) {
+      if (!img) { p.rect(ox, oy, ow, oh, C.sand); return; }
+      var iw = img.width, ih = img.height;
+      var sm = document.createElement('canvas'), q = 24 / Math.max(iw, ih); sm.width = Math.max(2, Math.round(iw * q)); sm.height = Math.max(2, Math.round(ih * q));
+      sm.getContext('2d').drawImage(img, 0, 0, sm.width, sm.height);
+      c.save(); c.beginPath(); c.rect(P(ox), PY(oy), L(ow), L(oh)); c.clip();
+      var kc = Math.max(L(ow) / iw, L(oh) / ih) * 1.15; c.imageSmoothingEnabled = true;
+      c.drawImage(sm, P(ox) + (L(ow) - iw * kc) / 2, PY(oy) + (L(oh) - ih * kc) / 2, iw * kc, ih * kc);
+      c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(P(ox), PY(oy), L(ow), L(oh));
+      var k = Math.min(L(iw2) / iw, L(ih2) / ih);
+      c.drawImage(img, P(ix) + (L(iw2) - iw * k) / 2, PY(iy) + (L(ih2) - ih * k) / 2, iw * k, ih * k);
       c.restore();
     };
     p.rot = function (cx, cy, a, fn) { c.save(); c.translate(P(cx), PY(cy)); c.rotate(a); c.translate(-P(cx), -PY(cy)); fn(); c.restore(); };
@@ -256,9 +278,10 @@
     return out.length > 74 ? out.slice(0, 72) + '…' : out;
   }
   function photoItem(r, ar, span, spec) {
-    var w = span === 'all' ? spec.w : colW(spec), iw = w - 2 * PF, ih = iw / (ar || 1.33);
-    ih = span === 'all' ? Math.max(iw * 0.5, Math.min(iw * 0.72, ih)) : Math.max(iw * 0.66, Math.min(iw * 1.3, ih));
-    return { t: 'photo', r: r, ar: ar, span: span, iw: iw, ih: ih, h: ih + PF + CAP };
+    ar = ar || 1.33;
+    var w = span === 'all' ? spec.w : colW(spec), iw = w - 2 * PF, ih = iw / ar;
+    if (span === 'all' && ih > iw * 0.75) { ih = iw * 0.75; iw = ih * ar; }   // 橫跨兩欄時太高就等比縮小，不裁切
+    return { t: 'photo', r: r, ar: ar, span: span, iw: iw, ih: ih, h: ih + PF + CAP, dx: (w - 2 * PF - iw) / 2 };
   }
   function noteItem(r, span, spec) {
     var w = span === 'all' ? spec.w : colW(spec), lines = wrap(r.text, NS, SANS, 400, w - 6);
@@ -284,18 +307,18 @@
         if (it.span === 'all') {
           var yS = maxY();
           if (yS + it.h > y1) {
-            if (yS + it.h * 0.75 <= y1 && it.ih > 30) { it.ih *= (y1 - yS) / it.h; it.h = it.ih + PF + CAP; }
+            if (yS + it.h * 0.75 <= y1 && it.ih > 30) { var f = (y1 - yS - PF - CAP) / it.ih; it.ih *= f; it.iw *= f; it.dx = (spec.w - 2 * PF - it.iw) / 2; it.h = it.ih + PF + CAP; }
             else { if (!cur.items.length || N === 1) { Object.assign(it, photoItem(it.r, it.ar, 1, spec)); } else newPage(nextTop); continue; }
           }
-          cur.items.push({ k: 'photo', it: it, x: spec.x0 + PF, y: yS + PF, w: it.iw, h: it.ih }); setAll(yS + it.h + GAP); q.shift(); continue;
+          cur.items.push({ k: 'photo', it: it, x: spec.x0 + PF + (it.dx || 0), y: yS + PF, w: it.iw, h: it.ih }); setAll(yS + it.h + GAP); q.shift(); continue;
         }
         var ci = minI();
         if (cur.col[ci] + it.h > y1) {
           var room = y1 - cur.col[ci];
-          if (room >= 30) { it.ih = room - PF - CAP; it.h = room; }
+          if (room >= 30) { var nih = room - PF - CAP; if (nih < it.ih) { it.ih = nih; it.iw = nih * it.ar; it.dx = (cw - 2 * PF - it.iw) / 2; it.h = room; } }
           else { newPage(nextTop); continue; }
         }
-        cur.items.push({ k: 'photo', it: it, x: cx(ci) + PF, y: cur.col[ci] + PF, w: it.iw, h: it.ih }); cur.col[ci] += it.h + GAP; q.shift(); continue;
+        cur.items.push({ k: 'photo', it: it, x: cx(ci) + PF + (it.dx || 0), y: cur.col[ci] + PF, w: it.iw, h: it.ih }); cur.col[ci] += it.h + GAP; q.shift(); continue;
       }
       if (it.t === 'note') {
         var lines = it.rest || it.all, w = it.w;
@@ -328,31 +351,42 @@
   }
 
   /* ---------- 拼版：依照片比例把多張照片排滿一個區域（像雜誌的滿版照片牆） ---------- */
-  function justify(ars, X, Y, Wd, Hd, g) {
-    var n = ars.length, best = null;
-    for (var rows = 1; rows <= Math.min(n, 4); rows++) {
-      // 依比例總和平均分行
-      var total = ars.reduce(function (a, b) { return a + b; }, 0), target = total / rows, groups = [[]], cum = 0;
-      ars.forEach(function (a, i) {
-        var last = groups[groups.length - 1];
-        if (groups.length < rows && last.length && cum + a / 2 > target * groups.length && n - i >= rows - groups.length) groups.push([]);
-        groups[groups.length - 1].push(i); cum += a;
-      });
-      if (groups.length !== rows) continue;
-      var hs = groups.map(function (gr) { var s = gr.reduce(function (a, i) { return a + ars[i]; }, 0); return (Wd - g * (gr.length - 1)) / s; });
-      var H0 = hs.reduce(function (a, b) { return a + b; }, 0) + g * (rows - 1);
-      var score = Math.abs(Math.log(H0 / Hd)) + (groups.some(function (gr) { return gr.length > 4; }) ? 1 : 0);
-      if (!best || score < best.score) best = { score: score, groups: groups, hs: hs, H0: H0 };
-    }
-    var k = (Hd - g * (best.groups.length - 1)) / (best.H0 - g * (best.groups.length - 1)), y = Y, tiles = [];
-    best.groups.forEach(function (gr, ri) {
-      var h = best.hs[ri] * k, x = X;
-      var sum = gr.reduce(function (a, i) { return a + ars[i]; }, 0), avail = Wd - g * (gr.length - 1);
-      gr.forEach(function (i) { var w = avail * ars[i] / sum; tiles[i] = { x: x, y: y, w: w, h: h }; x += w + g; });
+  // 依照片原始比例分行排滿區域（不裁切）：試遍分行方式，挑最能填滿區域、人物照又夠大的排法；整體等比縮放，置中
+  function layoutRows(ars, pe, X, Y, Wd, Hd, g) {
+    var n = ars.length, best = null, idx = ars.map(function (a, i) { return i; });
+    var orders = [idx];
+    if (pe.some(Boolean) && !pe.every(Boolean)) orders.push(idx.slice().sort(function (a, b) { return (pe[b] - pe[a]) || a - b; }), idx.slice().sort(function (a, b) { return (pe[a] - pe[b]) || a - b; }));
+    var limit = n <= 10 ? (1 << (n - 1)) : 0;
+    var tryRows = function (rows, oi) {
+      if (rows.length > 4) return;
+      var hs = rows.map(function (rw) { return (Wd - g * (rw.length - 1)) / rw.reduce(function (a, i) { return a + ars[i]; }, 0); });
+      var sumH = hs.reduce(function (a, b) { return a + b; }, 0), s = Math.min(1, (Hd - g * (rows.length - 1)) / sumH);
+      var used = 0, pa = 0, sa = 0;
+      rows.forEach(function (rw, ri) { rw.forEach(function (i) { var a = (hs[ri] * s * ars[i]) * (hs[ri] * s) / (Wd * Hd); used += a; if (pe[i]) pa += a; else sa += a; }); });
+      var score = -used * 3 - pa * 2 + sa * 0.6 + oi * 0.03 + rows.filter(function (rw) { return rw.length > 4; }).length * 0.6;
+      if (!best || score < best.score) best = { score: score, rows: rows, hs: hs, s: s };
+    };
+    orders.forEach(function (ord, oi) {
+      if (limit) {
+        for (var mask = 0; mask < limit; mask++) {
+          var rows = [[ord[0]]];
+          for (var j = 1; j < n; j++) { if (mask & (1 << (j - 1))) rows.push([]); rows[rows.length - 1].push(ord[j]); }
+          tryRows(rows, oi);
+        }
+      } else {
+        for (var r = 1; r <= 4; r++) { var per = Math.ceil(n / r), rws = []; for (var k = 0; k < n; k += per) rws.push(ord.slice(k, k + per)); tryRows(rws, oi); }
+      }
+    });
+    var totalH = best.hs.reduce(function (a, b) { return a + b * best.s; }, 0) + g * (best.rows.length - 1);
+    var y = Y + Math.max(0, (Hd - totalH) / 2), tiles = [];
+    best.rows.forEach(function (rw, ri) {
+      var h = best.hs[ri] * best.s, rowW = rw.reduce(function (a, i) { return a + ars[i] * h; }, 0) + g * (rw.length - 1), x = X + (Wd - rowW) / 2;
+      rw.forEach(function (i) { var w = ars[i] * h; tiles[i] = { x: x, y: y, w: w, h: h }; x += w + g; });
       y += h + g;
     });
     return tiles;
   }
+  function justify(ars, X, Y, Wd, Hd, g) { return layoutRows(ars, ars.map(function () { return false; }), X, Y, Wd, Hd, g); }
   // 照片牆上的說明：照片下緣漸層＋白字（說明（誰 拍））
   function tileCaption(p, r, t, withPlace) {
     var c = p.c, attr = '（' + who(r) + ' 拍）', txt = [withPlace ? r.place : '', capText(r)].filter(Boolean).join('｜');
@@ -367,32 +401,7 @@
   function isPeople(r) { return window.JournalAPI.peopleKind ? window.JournalAPI.peopleKind(r) === 'p' : false; }
   // 有人物的照片給大格、風景照給小格：試遍各種分行方式與順序，挑「人物照面積最大、風景照較小、裁切最少」的排法
   function justifyW(recs, X, Y, Wd, Hd, g) {
-    var n = recs.length, ars = recs.map(function (r) { return Math.max(0.5, Math.min(2.4, dims[r.id] || 1.33)); }), pe = recs.map(isPeople);
-    if (!pe.some(Boolean) || pe.every(Boolean) || n > 9) return justify(ars, X, Y, Wd, Hd, g);
-    var idx = recs.map(function (r, i) { return i; });
-    var orders = [idx, idx.slice().sort(function (a, b) { return (pe[b] - pe[a]) || a - b; }), idx.slice().sort(function (a, b) { return (pe[a] - pe[b]) || a - b; })];
-    var best = null;
-    orders.forEach(function (ord, oi) {
-      for (var mask = 0; mask < (1 << (n - 1)); mask++) {
-        var rows = [[ord[0]]];
-        for (var j = 1; j < n; j++) { if (mask & (1 << (j - 1))) rows.push([]); rows[rows.length - 1].push(ord[j]); }
-        if (rows.length > 4) continue;
-        var hs = rows.map(function (rw) { return (Wd - g * (rw.length - 1)) / rw.reduce(function (a, i) { return a + ars[i]; }, 0); });
-        var sumH = hs.reduce(function (a, b) { return a + b; }, 0), k = (Hd - g * (rows.length - 1)) / sumH;
-        if (k < 0.55 || k > 1.9) continue;
-        var score = Math.abs(Math.log(k)) * 3 + oi * 0.04;
-        rows.forEach(function (rw, ri) { if (rw.length > 4) score += 0.6; rw.forEach(function (i) { var a = (hs[ri] * ars[i]) * (hs[ri] * k) / (Wd * Hd); score += pe[i] ? -2.2 * a : 0.7 * a; }); });
-        if (!best || score < best.score) best = { score: score, rows: rows, hs: hs, k: k };
-      }
-    });
-    if (!best) return justify(ars, X, Y, Wd, Hd, g);
-    var tiles = [], y = Y;
-    best.rows.forEach(function (rw, ri) {
-      var h = best.hs[ri] * best.k, x = X, sum = rw.reduce(function (a, i) { return a + ars[i]; }, 0), avail = Wd - g * (rw.length - 1);
-      rw.forEach(function (i) { var w = avail * ars[i] / sum; tiles[i] = { x: x, y: y, w: w, h: h }; x += w + g; });
-      y += h + g;
-    });
-    return tiles;
+    return layoutRows(recs.map(function (r) { return dims[r.id] || 1.33; }), recs.map(isPeople), X, Y, Wd, Hd, g);
   }
   function mosaic(p, recs, imgs, X, Y, Wd, Hd, withPlace) {
     var tiles = justifyW(recs, X, Y, Wd, Hd, 1.3);
@@ -427,13 +436,13 @@
       L.push({ t: 'inside', photo: size.land ? (pick(land) || pick() || cover) : (pick(tall) || pick() || cover) });
       var toc = { t: 'toc', photos: [] }; L.push(toc);
       DAYS.forEach(function (day) {
-        var its = items.filter(function (r) { return r.day === day.id; }).sort(A.byTime);
+        var its = items.filter(function (r) { return (A.effDay ? A.effDay(r) : r.day) === day.id; }).sort(A.byTime);
         if (!its.length) return;
         var dayPhotos = its.filter(A.isPhoto);
         var free = dayPhotos.filter(function (r) { return !used[r.id]; });
         var hero = free.filter(function (r) { return isPeople(r) && (size.land ? (dims[r.id] || 1) < 1.6 : land(r)); })[0] || free.filter(function (r) { return size.land ? true : land(r); })[0] || free[0] || null;
         if (hero) used[hero.id] = 1;
-        var mealNames = day.meals.map(function (m) { return m.name; });
+        var mealNames = []; DAYS.forEach(function (dd) { dd.meals.forEach(function (m) { mealNames.push(m.name); }); });
         var mealPh = dayPhotos.filter(function (r) { return !used[r.id] && mealNames.indexOf(r.place) >= 0; });
         var foodPages = [], foodCap = size.land ? 6 : 6;
         if (mealPh.length >= 4) { chunkPhotos(mealPh, foodCap).forEach(function (ch) { foodPages.push({ t: 'food', day: day, photos: ch }); }); mealPh.forEach(function (r) { used[r.id] = 1; }); }
@@ -457,7 +466,7 @@
           var inl = g.photos.slice().sort(function (a, b) { return (isPeople(b) - isPeople(a)) || A.byTime(a, b); }).slice(0, inlineN);
           g.rest = g.photos.filter(function (r) { return inl.indexOf(r) < 0; });
           inl.concat(g.notes).sort(A.byTime).forEach(function (r, k) {
-            if (A.isPhoto(r)) { var span = (spec.cols > 1 && ((isPeople(r) && (dims[r.id] || 1.3) >= 0.9) || (k === 0 && land(r) && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
+            if (A.isPhoto(r)) { var span = (spec.cols > 1 && (dims[r.id] || 1.3) >= 1.15 && (isPeople(r) || (k === 0 && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
             else { var long = spec.cols > 1 && Array.from(r.text).length > 150; var ni = noteItem(r, long ? 'all' : 1, spec); ni.label = r.capCard ? '照片說明' : r.star ? '重點見聞' : 'Memo'; s.push(ni); }
           });
           return s;
@@ -469,7 +478,7 @@
           var routeN = clamp(wrap(stopsLine(day), 3, SANS, 600, 86), 2).length, heroH = 0, dayPages = null;
           // 最後一頁只剩一點點時，把開場大照片縮小一些，避免浪費一頁
           [0.4, 0.31, 0.24].some(function (k) {
-            heroH = H * k; dayPages = paginate(seq, heroH + 7.5 + 13.5 + (routeN - 1) * 4.2 + 4, H, spec, 10);
+            heroH = Math.min(H * k, hero ? 100 / (dims[hero.id] || 1.5) : H * k); dayPages = paginate(seq, heroH + 7.5 + 13.5 + (routeN - 1) * 4.2 + 4, H, spec, 10);
             return dayPages.length === 1 || dayPages[dayPages.length - 1].items.length >= 2;
           });
           dayPages.forEach(function (pg, k) {
@@ -540,7 +549,7 @@
   function drawCover(p, bk, o, img, Wc) {
     var H = bk.H, c = p.c, A = window.JournalAPI;
     p.bg('#6F4A2E');
-    if (img) p.img(img, p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b);
+    if (img) p.imgSafe(img, p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b, 0, 0, Wc, H);
     else { stripes(p, 'cover', 0.9); leaves(p, 'cv', [[20, 40, 8], [70, 70, 10], [40, 100, 7], [80, 30, 6]]); }
     grad(p, -p.b, H * 0.34, 0.5, 0); grad(p, H * 0.55, H + p.b, 0, 0.62);
     var ms = Math.min(Wc * 0.2, H * 0.15), mx = 5;
@@ -575,7 +584,7 @@
   function drawInside(p, bk, o, img) {
     var H = bk.H, PW = bk.PW, c = p.c, k = H / 141;
     p.bg('#7A3B22');
-    if (img) p.img(img, p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b); else stripes(p, 'inside', 0.8);
+    if (img) p.imgSafe(img, p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b, 0, 0, PW, H); else stripes(p, 'inside', 0.8);
     grad(p, -p.b, H + p.b, 0.12, 0.32);
     p.shadow(true, 1, 0.2);
     c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = p.L(0.3); c.beginPath(); c.moveTo(p.P(PW - 27), p.PY(H * 0.12)); c.lineTo(p.P(PW - 36), p.PY(H * 0.62)); c.stroke();
@@ -660,7 +669,7 @@
     dots(p, pg.n, 10, 4, H * 0.45, p.W - 4, H - 8);
     if (pg.first) {
       var hh = pg.heroH;
-      if (imgs.hero) p.img(imgs.hero, p.rx0, -p.b, p.rx1 - p.rx0, hh + p.b);
+      if (imgs.hero) p.imgSafe(imgs.hero, p.rx0, -p.b, p.rx1 - p.rx0, hh + p.b, 0, 0, p.W, hh);
       else { p.rect(p.rx0, -p.b, p.rx1 - p.rx0, hh + p.b, '#E7DCC2'); leaves(p, 'h' + d.id, [[20, hh * 0.5, 7], [50, hh * 0.35, 9], [78, hh * 0.6, 6]]); }
       if (imgs.hero && pg.hero) tileCaption(p, pg.hero, { x: 0, y: 0, w: p.W, h: hh }, false);
       p.rect(p.rx0, hh + 0.8, p.rx1 - p.rx0, 0.5, C.olive); p.rect(p.rx0, hh + 1.8, p.rx1 - p.rx0, 0.2, C.olive);
@@ -682,33 +691,56 @@
     folio(p, pg.n);
   }
 
-  // 橫式開場頁：左邊滿版大照片，右邊標題與行程時間軸
+  // 橫式開場頁：直式或接近方形的照片放左邊滿高；橫幅照片放上方滿寬，標題與行程在下方（照片都不裁切）
   function drawLOpen(p, bk, pg, imgs) {
-    var H = bk.H, PW = bk.PW, d = pg.day, c = p.c, sx = PW * 0.6;
+    var H = bk.H, PW = bk.PW, d = pg.day, c = p.c, ar0 = pg.hero ? (dims[pg.hero.id] || 0.8) : 0.8;
     stripes(p, 'lo' + d.id, 0.5);
-    if (imgs.hero) { p.img(imgs.hero, -p.b, -p.b, sx + p.b, H + 2 * p.b); tileCaption(p, pg.hero, { x: 0, y: 0, w: sx, h: H }, false); }
-    else { p.rect(-p.b, -p.b, sx + p.b, H + 2 * p.b, '#E7DCC2'); leaves(p, 'lh' + d.id, [[20, 30, 8], [50, 55, 10], [30, 80, 7]]); }
-    p.rect(sx, -p.b, 0.6, H + 2 * p.b, C.olive);
-    var x = sx + 6, w = PW - x - 6, y = 13;
-    smallMast(p, x, y, 3.4, C.olive);
-    p.text(d.label.toUpperCase(), x, y + 9, 4.2, LAT, 700, C.olive, 'left', 0.6);
-    p.text(dayDateLabel(d), x + textW(d.label.toUpperCase(), 4.2, LAT, 700) + 3, y + 9, 2.8, SANS, 700, C.ink);
-    var tl = clamp(wrap(d.short, 6.2, SERIF, 900, w), 2);
-    tl.forEach(function (l, i) { p.text(l, x, y + 18 + i * 7.4, 6.2, SERIF, 900, C.ink); });
-    y += 18 + (tl.length - 1) * 7.4 + 8;
-    p.text('今日行程', x, y, 2.8, SANS, 700, C.olive); y += 5;
     var rows = d.stops.map(function (s, i) { return { n: i + 1, t: s.name, sub: s.stay || '' }; });
-    var lh = Math.min(6.2, (H - 20 - y) / Math.max(1, rows.length + d.meals.length * 0.7));
-    if (rows.length > 1) p.rect(x + 2.1, y - 1.2, 0.35, (rows.length - 1) * lh, C.olive);
-    rows.forEach(function (r, i) {
-      var yy = y + i * lh;
-      c.fillStyle = C.olive; c.beginPath(); c.arc(p.P(x + 2.3), p.PY(yy - 1.2), p.L(1.9), 0, Math.PI * 2); c.fill();
-      p.text(String(r.n), x + 2.3, yy - 0.3, 2.2, LAT, 700, '#FFFFFF', 'center');
-      p.text(clamp(wrap(r.t, 3, SANS, 600, w - 22), 1)[0], x + 6, yy, 3, SANS, 600, C.ink);
-      if (r.sub) p.text(r.sub, x + w, yy, 2.1, SANS, 400, C.soft, 'right');
-    });
-    y += rows.length * lh + 1;
-    d.meals.forEach(function (m, i) { maple(p, x + 2.3, y + i * lh * 0.7 - 1.2, 1.5, 0.2); p.text(m.type + '｜' + m.name, x + 6, y + i * lh * 0.7, 2.4, SANS, 400, C.soft); });
+    var timeline = function (x, y, w, yMax, cols) {
+      var per = Math.ceil(rows.length / cols), cw = (w - (cols - 1) * 5) / cols;
+      var lh = Math.min(6.2, (yMax - y) / Math.max(1, per + (cols === 1 ? d.meals.length * 0.7 : 0)));
+      for (var ci = 0; ci < cols; ci++) {
+        var part = rows.slice(ci * per, ci * per + per), x0 = x + ci * (cw + 5);
+        if (part.length > 1) p.rect(x0 + 2.1, y - 1.2, 0.35, (part.length - 1) * lh, C.olive);
+        part.forEach(function (r, i) {
+          var yy = y + i * lh;
+          c.fillStyle = C.olive; c.beginPath(); c.arc(p.P(x0 + 2.3), p.PY(yy - 1.2), p.L(1.9), 0, Math.PI * 2); c.fill();
+          p.text(String(r.n), x0 + 2.3, yy - 0.3, 2.2, LAT, 700, '#FFFFFF', 'center');
+          var subW = r.sub ? textW(r.sub, 2.1, SANS, 400) + 2 : 0;
+          p.text(clamp(wrap(r.t, 3, SANS, 600, cw - 7 - subW), 1)[0], x0 + 6, yy, 3, SANS, 600, C.ink);
+          if (r.sub) p.text(r.sub, x0 + cw, yy, 2.1, SANS, 400, C.soft, 'right');
+        });
+      }
+      return y + per * lh + 1;
+    };
+    var meals = function (x, y, lh) { d.meals.forEach(function (m, i) { maple(p, x + 2.3, y + i * lh - 1.2, 1.5, 0.2); p.text(m.type + '｜' + m.name, x + 6, y + i * lh, 2.4, SANS, 400, C.soft); }); };
+    if (ar0 >= 1.3) {
+      var hh = Math.min(H * 0.6, PW / ar0);
+      if (imgs.hero) { p.imgSafe(imgs.hero, p.rx0, -p.b, p.rx1 - p.rx0, hh + p.b, 0, 0, PW, hh); tileCaption(p, pg.hero, { x: 0, y: 0, w: PW, h: hh }, false); }
+      p.rect(p.rx0, hh, p.rx1 - p.rx0, 0.6, C.olive);
+      var y = hh + 9;
+      p.text(d.label.toUpperCase(), 6, y, 4.2, LAT, 700, C.olive, 'left', 0.6);
+      p.text(dayDateLabel(d), 6, y + 5.5, 2.8, SANS, 700, C.ink);
+      p.lines(clamp(wrap(d.short, 5.6, SERIF, 900, 44), 2), 6, y + 13.5, 5.6, 6.6, SERIF, 900, C.ink);
+      var tx = 56; p.text('今日行程', tx, y - 1, 2.8, SANS, 700, C.olive);
+      var yEnd = timeline(tx, y + 4.5, PW - tx - 6, H - 14, rows.length > 4 ? 2 : 1);
+      meals(tx, Math.min(yEnd + 2, H - 12), 4);
+    } else {
+      var sx = PW * 0.58;
+      if (imgs.hero) { p.imgSafe(imgs.hero, -p.b, -p.b, sx + p.b, H + 2 * p.b, 0, 0, sx, H); tileCaption(p, pg.hero, { x: 0, y: 0, w: sx, h: H }, false); }
+      else { p.rect(-p.b, -p.b, sx + p.b, H + 2 * p.b, '#E7DCC2'); leaves(p, 'lh' + d.id, [[20, 30, 8], [50, 55, 10], [30, 80, 7]]); }
+      p.rect(sx, -p.b, 0.6, H + 2 * p.b, C.olive);
+      var x = sx + 6, w = PW - x - 6, y2 = 13;
+      smallMast(p, x, y2, 3.4, C.olive);
+      p.text(d.label.toUpperCase(), x, y2 + 9, 4.2, LAT, 700, C.olive, 'left', 0.6);
+      p.text(dayDateLabel(d), x + textW(d.label.toUpperCase(), 4.2, LAT, 700) + 3, y2 + 9, 2.8, SANS, 700, C.ink);
+      var tl = clamp(wrap(d.short, 6.2, SERIF, 900, w), 2);
+      tl.forEach(function (l, i) { p.text(l, x, y2 + 18 + i * 7.4, 6.2, SERIF, 900, C.ink); });
+      y2 += 18 + (tl.length - 1) * 7.4 + 8;
+      p.text('今日行程', x, y2, 2.8, SANS, 700, C.olive); y2 += 5;
+      var ye = timeline(x, y2, w, H - 20, 1);
+      meals(x, ye, 4.3);
+    }
     folio(p, pg.n);
   }
 

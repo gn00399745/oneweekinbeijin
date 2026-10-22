@@ -31,6 +31,8 @@
   var DATE2DAY = {};
   DAYS.forEach(function (d) { var m = String(d.title || '').match(/(\d{1,2})\/(\d{1,2})/); if (m) DATE2DAY[TRIP_YEAR + '-' + pad(+m[1]) + '-' + pad(+m[2])] = d.id; });
   function isPhoto(r) { return r.kind !== 'note'; }
+  // 照片依「拍攝日期」歸到那一天（例如同一間飯店住三晚，每天拍的照片分開放）；沒有可用日期時才用新增時選的日子
+  function effDay(r) { if (isPhoto(r) && r.takenAt) { var d = DATE2DAY[String(r.takenAt).slice(0, 10)]; if (d) return d; } return r.day; }
   function isNote(r) { return r.kind === 'note'; }
   // 自己的紀錄（mine）不必每次署名，名字在匯出 JSON 時才填，並套用到所有自己的紀錄
   function who(r) { return r.mine ? (author() || '我') : (r.author || '未署名'); }
@@ -341,7 +343,7 @@
   /* ---------------- 相簿畫面 ---------------- */
   var mount = null, selecting = false, selected = {}, fab = null, selbar = null;
 
-  function dayItems(dayId) { return ALL.filter(function (r) { return r.day === dayId; }).sort(byTime); }
+  function dayItems(dayId) { return ALL.filter(function (r) { return effDay(r) === dayId; }).sort(byTime); }
   // 依行程順序分組：景點 → 餐廳 → 飯店 → 其他地點 → 未指定
   function groupsFor(day, items) {
     items = items || dayItems(day.id);
@@ -398,7 +400,7 @@
     function put(card, name) {
       var old = card.querySelector('.jr-badge'); if (old) old.remove();
       if (!name) return;
-      var its = ALL.filter(function (r) { return r.day === day.id && r.place === name; });
+      var its = ALL.filter(function (r) { return effDay(r) === day.id && r.place === name; });
       var p = its.filter(isPhoto).length, n = its.length - p;
       if (its.length) { var b = document.createElement('span'); b.className = 'jr-badge'; b.textContent = (p ? '📷 ' + p : '') + (p && n ? '  ' : '') + (n ? '✍️ ' + n : ''); card.appendChild(b); }
     }
@@ -463,7 +465,7 @@
     function show() {
       var r = list[idx]; if (!r) return close();
       if (cur) URL.revokeObjectURL(cur); cur = URL.createObjectURL(r.blob); img.src = cur;
-      var d = dayById(r.day);
+      var d = dayById(effDay(r));
       $('.count', lb).textContent = (idx + 1) + ' / ' + list.length;
       $('.place', lb).textContent = (d ? d.label + '・' : '') + (r.place || '旅途照片');
       $('.note', lb).textContent = r.note || ''; $('.note', lb).style.display = r.note ? '' : 'none';
@@ -690,7 +692,7 @@
   }
 
   window.JournalAPI = {
-    peopleKind: peopleKind, detectPeople: detectPeople,
+    peopleKind: peopleKind, detectPeople: detectPeople, effDay: effDay,
     items: function () { return ALL; }, groupsFor: groupsFor, placesOf: placesOf, placeTitle: placeTitle,
     isPhoto: isPhoto, isNote: isNote, who: who, byTime: byTime, dayById: dayById, dayDate: dayDate, tripRange: tripRange,
     authorsAll: authorsAll, thumbURL: tURL, saveFiles: saveFiles, toast: toast, openSheet: openSheet, unlock: unlock,
@@ -701,7 +703,7 @@
   function onModal(title) {
     var body = document.querySelector('#modalOverlay .modal-body'); if (!body) return;
     var box = body.querySelector('.jr-modal'); if (!box) { box = document.createElement('div'); box.className = 'jr-modal'; body.appendChild(box); }
-    var day = curDay(), its = ALL.filter(function (r) { return r.day === day.id && r.place === title; }).sort(byTime);
+    var day = curDay(), its = ALL.filter(function (r) { return effDay(r) === day.id && r.place === title; }).sort(byTime);
     var ps = its.filter(isPhoto), ns = its.filter(isNote);
     box.style.setProperty('--day-color', day.color);
     box.innerHTML = '<div class="jr-modal-head"><b>📷 我們在這裡的紀錄' + (its.length ? '（' + its.length + '）' : '') + '</b></div>' +
