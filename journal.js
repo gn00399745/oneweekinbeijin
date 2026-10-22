@@ -32,7 +32,8 @@
   DAYS.forEach(function (d) { var m = String(d.title || '').match(/(\d{1,2})\/(\d{1,2})/); if (m) DATE2DAY[TRIP_YEAR + '-' + pad(+m[1]) + '-' + pad(+m[2])] = d.id; });
   function isPhoto(r) { return r.kind !== 'note'; }
   // 照片依「拍攝日期」歸到那一天（例如同一間飯店住三晚，每天拍的照片分開放）；沒有可用日期時才用新增時選的日子
-  function effDay(r) { if (isPhoto(r) && r.takenAt) { var d = DATE2DAY[String(r.takenAt).slice(0, 10)]; if (d) return d; } return r.day; }
+  // 照片放在哪一天：自己選過的日子優先；沒有特別選、而且照片本身有拍攝日期（EXIF）時，才依拍攝日期自動歸到那一天
+  function effDay(r) { if (isPhoto(r) && !r.dayPicked && r.exif && r.takenAt) { var d = DATE2DAY[String(r.takenAt).slice(0, 10)]; if (d) return d; } return r.day; }
   function isNote(r) { return r.kind === 'note'; }
   // 自己的紀錄（mine）不必每次署名，名字在匯出 JSON 時才填，並套用到所有自己的紀錄
   function who(r) { return r.mine ? (author() || '我') : (r.author || '未署名'); }
@@ -198,7 +199,7 @@
       $$('.jr-chip', K('days')).forEach(function (b) {
         b.onclick = function () {
           if (b.dataset.d === 'auto') st.auto = true;
-          else { st.auto = false; st.day = +b.dataset.d; if (!placesOf(dayById(st.day)).some(function (x) { return x.name === st.place; }) && !st.customOpen) st.place = ''; }
+          else { st.auto = false; st.manual = true; st.day = +b.dataset.d; if (!placesOf(dayById(st.day)).some(function (x) { return x.name === st.place; }) && !st.customOpen) st.place = ''; }
           drawDays(); drawPlaces();
         };
       });
@@ -260,7 +261,7 @@
     }
     function readDates() {
       drawPrev();
-      Promise.all(items.map(function (it) { return it.taken ? it.taken : exifDate(it.file).then(function (t) { return (it.taken = t || localStamp(new Date(it.file.lastModified || Date.now()))); }); })).then(function () {
+      Promise.all(items.map(function (it) { return it.taken ? it.taken : exifDate(it.file).then(function (t) { it.exif = !!t; return (it.taken = t || localStamp(new Date(it.file.lastModified || Date.now()))); }); })).then(function () {
         if (!(p && p.day)) {   // 從景點進來就以景點為準；否則依拍攝日期判斷是第幾天
           var ds = []; items.forEach(function (it) { var id = DATE2DAY[it.taken.slice(0, 10)]; if (id && ds.indexOf(id) < 0) ds.push(id); });
           ds.sort(function (a, b) { return a - b; }); st.autoDays = ds;
@@ -296,7 +297,7 @@
         have[fp] = 1;
         var day = st.auto ? (DATE2DAY[taken.slice(0, 10)] || curDay().id) : st.day;
         makeThumb(f).then(function (th) {
-          recs.push({ id: uid('p'), kind: 'photo', fp: fp, day: day, place: place, note: recs.length ? '' : note, author: '', mine: true, takenAt: taken, addedAt: now, localAddedAt: now, name: f.name, type: f.type || 'image/jpeg', size: f.size, blob: f, thumb: th });
+          recs.push({ id: uid('p'), kind: 'photo', fp: fp, day: day, place: place, note: recs.length ? '' : note, author: '', mine: true, exif: !!it.exif, dayPicked: !!st.manual, takenAt: taken, addedAt: now, localAddedAt: now, name: f.name, type: f.type || 'image/jpeg', size: f.size, blob: f, thumb: th });
           next();
         });
       })();
@@ -457,7 +458,7 @@
     lb.innerHTML = '<div class="jr-lb-top"><button class="x" type="button" aria-label="關閉">✕</button><div class="count"></div><span style="width:46px"></span></div>' +
       '<div class="jr-lb-stage"><img alt=""><button class="jr-lb-nav prev" type="button" aria-label="上一張">‹</button><button class="jr-lb-nav next" type="button" aria-label="下一張">›</button></div>' +
       '<div class="jr-lb-info"><div class="place"></div><div class="note"></div><div class="meta"></div>' +
-      '<div class="jr-lb-actions"><button class="dl" type="button">⬇ 存原圖</button><button class="ed" type="button">✎ 說明</button><button class="pp" type="button"></button><button class="rm" type="button">🗑</button></div>' +
+      '<div class="jr-lb-actions"><button class="dl" type="button">⬇ 存原圖</button><button class="ed" type="button">✎ 編輯</button><button class="pp" type="button"></button><button class="rm" type="button">🗑</button></div>' +
       (isTouch ? '<div class="jr-lb-tip">在分享選單點「儲存影像」即可存到相簿，畫質與原圖相同</div>' : '') + '</div>';
     document.body.appendChild(lb); document.body.classList.add('jr-lock');
     requestAnimationFrame(function () { lb.classList.add('show'); });
@@ -489,10 +490,12 @@
     $('.dl', lb).onclick = function () { saveRecords([list[idx]]); };
     $('.ed', lb).onclick = function () {
       var r = list[idx];
-      var sh = openSheet('照片說明', '<textarea class="jr-textarea" data-k="t" placeholder="這張照片想說的話">' + esc(r.note || '') + '</textarea><div class="jr-actions"><button class="jr-btn primary" data-k="s" type="button">儲存</button></div>');
+      var st2 = { day: effDay(r), place: r.place || '', auto: false };
+      var sh = openSheet('編輯照片', '<div class="jr-label" style="margin-top:4px">照片說明</div><textarea class="jr-textarea" data-k="t" placeholder="這張照片想說的話">' + esc(r.note || '') + '</textarea>' + pickerHTML('') + '<div class="jr-actions"><button class="jr-btn primary" data-k="s" type="button">儲存</button></div>');
+      var pk2 = bindPicker(sh, st2); pk2.redraw();
       sh.querySelector('[data-k="s"]').onclick = function () {
-        var nr = Object.assign({}, r, { note: sh.querySelector('[data-k="t"]').value.trim(), localAddedAt: new Date().toISOString() });
-        dbPut([nr]).then(reload).then(function () { list[idx] = nr; sh.close(); show(); refresh(); toast('已更新說明'); }).catch(function () { toast('儲存失敗，請再試一次'); });
+        var nr = Object.assign({}, r, { note: sh.querySelector('[data-k="t"]').value.trim(), day: st2.day, place: pk2.place(), dayPicked: r.dayPicked || st2.day !== effDay(r), localAddedAt: new Date().toISOString() });
+        dbPut([nr]).then(reload).then(function () { list[idx] = nr; sh.close(); show(); refresh(); toast('已更新'); }).catch(function () { toast('儲存失敗，請再試一次'); });
       };
     };
     rm.onclick = function () {
@@ -521,7 +524,7 @@
   function metaOf(r) {
     var m = { id: r.id, kind: r.kind || 'photo', day: r.day, place: r.place, author: r.mine ? author() : r.author, takenAt: r.takenAt, addedAt: r.addedAt };
     if (isNote(r)) { m.text = r.text; m.star = !!r.star; if (r.editedAt) m.editedAt = r.editedAt; }
-    else { m.fp = r.fp; m.note = r.note; m.name = r.name; m.type = r.type; m.size = r.size; if (r.people) m.people = r.people; if (r.peopleSet) m.peopleSet = r.peopleSet; }
+    else { m.fp = r.fp; m.note = r.note; m.name = r.name; m.type = r.type; m.size = r.size; if (r.people) m.people = r.people; if (r.peopleSet) m.peopleSet = r.peopleSet; if (r.exif) m.exif = true; if (r.dayPicked) m.dayPicked = true; }
     return m;
   }
   function buildExport(recs, prog) {
@@ -628,7 +631,7 @@
         var blob; try { blob = dataURLToBlob(p.data); } catch (e) { skip++; return step(); }
         p.data = null;
         return makeThumb(blob).then(function (th) {
-          batch.push(Object.assign(base, { kind: 'photo', fp: String(p.fp || ''), note: String(p.note || ''), name: String(p.name || ''), type: blob.type, size: blob.size, blob: blob, thumb: th, people: p.people && typeof p.people === 'object' ? { n: +p.people.n || 0, max: +p.people.max || 0, sum: +p.people.sum || 0 } : undefined, peopleSet: p.peopleSet === 'p' || p.peopleSet === 's' ? p.peopleSet : undefined })); nPh++;
+          batch.push(Object.assign(base, { kind: 'photo', fp: String(p.fp || ''), note: String(p.note || ''), name: String(p.name || ''), type: blob.type, size: blob.size, blob: blob, thumb: th, people: p.people && typeof p.people === 'object' ? { n: +p.people.n || 0, max: +p.people.max || 0, sum: +p.people.sum || 0 } : undefined, peopleSet: p.peopleSet === 'p' || p.peopleSet === 's' ? p.peopleSet : undefined, exif: !!p.exif, dayPicked: !!p.dayPicked })); nPh++;
           return after();
         });
       };

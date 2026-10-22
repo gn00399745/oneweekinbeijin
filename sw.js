@@ -1,7 +1,7 @@
 // 皇城探祕記：明清時光機 — 簡易 Service Worker
 // 目的：讓瀏覽器判定這是一個「可安裝」的網頁應用（PWA），並提供基本離線快取
 // game.html 約 10MB，不在安裝時預先下載（會拖慢首頁），第一次進遊戲時才快取
-const CACHE_NAME = 'hcts-cache-v15';
+const CACHE_NAME = 'hcts-cache-v16';
 const APP_SHELL = [
   './index.html',
   './manifest.json',
