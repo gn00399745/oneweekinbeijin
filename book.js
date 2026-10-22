@@ -212,18 +212,47 @@
   function attrCol(r) { return colorOf[who(r)] || C.red; }
   var PF = 1.3, CAP = 6.2;      // 拍立得邊框、下緣說明高度
   // 照片說明：同一段文字只出現一次；放得下一行的寫在照片上，太長的改成「照片說明」卡片放在文字區，完整顯示
-  var capMode = {};
-  function capText(r) { return capMode[r.id] === 'show' ? r.note : ''; }
-  function capLines(r, w) { var t = capText(r); return t ? clamp(wrap(t, 2.3, SANS, 400, w - textW('（' + who(r) + ' 拍）', 2.1, SANS, 700) - 1), 1) : []; }
+  // 照片說明：同一段文字只寫一次；照片上只標小號碼，完整說明統一寫在頁面最下方
+  var capMode = {}, capNo = {};
+  function capText(r) { return capMode[r.id] === 'show' ? String(r.note || '').trim() : ''; }
+  var CS = 2.45, CL = 3.7;
+  function capEntryLines(r, w) { return wrap(capText(r) + '（' + who(r) + ' 拍）', CS, SANS, 400, w - 6); }
+  function capBlockH(recs, w) { var n = 0; recs.forEach(function (r) { if (capText(r)) n += capEntryLines(r, w).length; }); return n ? n * CL + 3.2 : 0; }
+  // 為這一頁有說明的照片編號
+  function numberCaps(recs) { capNo = {}; var k = 0; recs.forEach(function (r) { if (r && capText(r) && !capNo[r.id]) capNo[r.id] = ++k; }); return recs.filter(function (r) { return r && capNo[r.id]; }).sort(function (a, b) { return capNo[a.id] - capNo[b.id]; }); }
+  function badge(p, n, x, y) {
+    var c = p.c; c.fillStyle = 'rgba(126,139,58,.92)'; c.beginPath(); c.arc(p.P(x), p.PY(y), p.L(1.9), 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#FFFFFF'; c.lineWidth = p.L(0.25); c.stroke();
+    p.text(String(n), x, y + 0.85, 2.3, LAT, 700, '#FFFFFF', 'center');
+  }
+  // 頁面底部的說明區
+  function drawCapBlock(p, list, x, w, yBottom) {
+    if (!list.length) return;
+    var h = capBlockH(list, w), y = yBottom - h + 2.6;
+    p.rect(x, y - 2.4, w, 0.2, 'rgba(126,139,58,.5)');
+    list.forEach(function (r) {
+      var ls = capEntryLines(r, w);
+      badge(p, capNo[r.id], x + 1.9, y + CL * 0.55 - 1.3);
+      ls.forEach(function (l, i) {
+        var last = i === ls.length - 1, attr = '（' + who(r) + ' 拍）';
+        if (last && l.slice(-attr.length) === attr) {
+          var body = l.slice(0, l.length - attr.length);
+          p.text(body, x + 5, y + 1.6, CS, SANS, 400, C.ink);
+          p.text(attr, x + 5 + textW(body, CS, SANS, 400), y + 1.6, CS * 0.92, SANS, 700, attrCol(r));
+        } else p.text(l, x + 5, y + 1.6, CS, SANS, 400, C.ink);
+        y += CL;
+      });
+    });
+  }
   // 拍立得：白框＋下緣寫說明與「誰拍」，可傾斜、貼紙膠帶
   function polaroid(p, img, r, x, y, w, h, rot, tapeCol) {
     var cx = x + w / 2, cy = y + h / 2;
     p.rot(cx, cy, rot || 0, function () {
       p.shadow(true, 1.6, 0.6); p.rect(x - PF, y - PF, w + 2 * PF, h + PF + CAP, '#FFFFFF'); p.shadow(false);
       p.img(img, x, y, w, h);
-      var lines = capLines(r, w), attr = '（' + who(r) + ' 拍）', ty = y + h + 4.1;
-      if (lines.length) { p.text(lines[0], x + 0.3, ty, 2.3, SANS, 400, C.ink); p.text(attr, x + w - 0.3, ty, 2.1, SANS, 700, attrCol(r), 'right'); }
-      else p.text(attr, x + w - 0.3, ty, 2.1, SANS, 700, attrCol(r), 'right');
+      var attr = '（' + who(r) + ' 拍）', ty = y + h + 4.1;
+      if (capNo[r.id]) badge(p, capNo[r.id], x + 2.1, ty - 0.9);
+      p.text(attr, x + w - 0.3, ty, 2.1, SANS, 700, attrCol(r), 'right');
       if (tapeCol) tape(p, cx, y - PF + 0.3, Math.min(14, w * 0.38), (rot || 0) * -3 + 0.04, tapeCol);
     });
   }
@@ -287,12 +316,15 @@
     var w = span === 'all' ? spec.w : colW(spec), lines = wrap(r.text, NS, SANS, 400, w - 6);
     return { t: 'note', r: r, span: span, w: w, all: lines };
   }
-  function paginate(items, firstTop, H, spec, nextTop) {
-    var pages = [], q = items.slice(), y1 = H - 9, cur = null, N = spec.cols, cw = colW(spec);
+  function paginate(items, firstTop, H, spec, nextTop, firstCapH) {
+    var pages = [], q = items.slice(), cur = null, N = spec.cols, cw = colW(spec);
+    var Y1 = function () { return H - 9 - cur.capH; };
+    // 有說明的照片，頁尾要多留說明的空間
+    var capAdd = function (r) { if (!capText(r)) return 0; return capEntryLines(r, spec.w).length * CL + (cur.capH ? 0 : 3.2); };
     var cx = function (i) { return spec.x0 + i * (cw + spec.gut); };
     var maxY = function () { return Math.max.apply(null, cur.col); };
     var minI = function () { var m = 0; for (var i = 1; i < N; i++) if (cur.col[i] < cur.col[m]) m = i; return m; };
-    function newPage(top) { cur = { items: [], col: [], top: top, heads: [] }; for (var i = 0; i < N; i++) cur.col.push(top); pages.push(cur); }
+    function newPage(top) { cur = { items: [], col: [], top: top, heads: [], capH: pages.length ? 0 : (firstCapH || 0) }; for (var i = 0; i < N; i++) cur.col.push(top); pages.push(cur); }
     function setAll(y) { for (var i = 0; i < N; i++) cur.col[i] = y; }
     newPage(firstTop);
     var guard = 0;
@@ -300,21 +332,22 @@
       var it = q[0];
       if (it.t === 'head') {
         var yH = maxY(), nxt = q[1], need = 11 + (nxt ? Math.min(30, nxt.h || 30) : 0);
-        if (yH + need > y1 && cur.items.length) { newPage(nextTop); continue; }
+        if (yH + need > Y1() && cur.items.length) { newPage(nextTop); continue; }
         cur.items.push({ k: 'head', it: it, x: spec.x0, y: yH, w: spec.w }); cur.heads.push(it.pl.name + '|' + it.pl.label); setAll(yH + 11.5); q.shift(); continue;
       }
       if (it.t === 'photo') {
+        var add = capAdd(it.r); cur.capH += add;
         if (it.span === 'all') {
           var yS = maxY();
-          if (yS + it.h > y1) {
-            if (yS + it.h * 0.75 <= y1 && it.ih > 30) { var f = (y1 - yS - PF - CAP) / it.ih; it.ih *= f; it.iw *= f; it.dx = (spec.w - 2 * PF - it.iw) / 2; it.h = it.ih + PF + CAP; }
-            else { if (!cur.items.length || N === 1) { Object.assign(it, photoItem(it.r, it.ar, 1, spec)); } else newPage(nextTop); continue; }
+          if (yS + it.h > Y1()) {
+            if (yS + it.h * 0.75 <= Y1() && it.ih > 30) { var f = (Y1() - yS - PF - CAP) / it.ih; it.ih *= f; it.iw *= f; it.dx = (spec.w - 2 * PF - it.iw) / 2; it.h = it.ih + PF + CAP; }
+            else { if (!cur.items.length || N === 1) { cur.capH -= add; Object.assign(it, photoItem(it.r, it.ar, 1, spec)); } else newPage(nextTop); continue; }
           }
           cur.items.push({ k: 'photo', it: it, x: spec.x0 + PF + (it.dx || 0), y: yS + PF, w: it.iw, h: it.ih }); setAll(yS + it.h + GAP); q.shift(); continue;
         }
         var ci = minI();
-        if (cur.col[ci] + it.h > y1) {
-          var room = y1 - cur.col[ci];
+        if (cur.col[ci] + it.h > Y1()) {
+          var room = Y1() - cur.col[ci];
           if (room >= 30) { var nih = room - PF - CAP; if (nih < it.ih) { it.ih = nih; it.iw = nih * it.ar; it.dx = (cw - 2 * PF - it.iw) / 2; it.h = room; } }
           else { newPage(nextTop); continue; }
         }
@@ -328,7 +361,7 @@
           return h;
         };
         if (it.span === 'all') {
-          var yN = maxY(), fitN = Math.floor((y1 - yN - 12.6) / NL);
+          var yN = maxY(), fitN = Math.floor((Y1() - yN - 12.6) / NL);
           if (fitN >= lines.length) { setAll(yN + put(spec.x0, yN, lines, true, 0) + GAP); q.shift(); continue; }
           if (fitN >= 3) { put(spec.x0, yN, lines.slice(0, fitN), false, 0); it.rest = lines.slice(fitN); }
           newPage(nextTop); continue;
@@ -336,11 +369,11 @@
         // 找能完整放下的欄；都放不下就放在最空的欄並截斷到下一頁
         var best = -1;
         for (var k = 0, order = cur.col.map(function (v, i) { return i; }).sort(function (a, b) { return cur.col[a] - cur.col[b]; }); k < order.length; k++) {
-          if (Math.floor((y1 - cur.col[order[k]] - 12.6) / NL) >= lines.length) { best = order[k]; break; }
+          if (Math.floor((Y1() - cur.col[order[k]] - 12.6) / NL) >= lines.length) { best = order[k]; break; }
         }
         var rot = (hash(it.r.id + 'r') - 0.5) * 0.05;
         if (best >= 0) { cur.col[best] += put(cx(best), cur.col[best], lines, true, rot) + GAP; q.shift(); continue; }
-        var cn = minI(), fit = Math.floor((y1 - cur.col[cn] - 12.6) / NL);
+        var cn = minI(), fit = Math.floor((Y1() - cur.col[cn] - 12.6) / NL);
         if (fit >= 3) { cur.col[cn] += put(cx(cn), cur.col[cn], lines.slice(0, fit), false, rot) + GAP; it.rest = lines.slice(fit); }
         newPage(nextTop); continue;
       }
@@ -398,7 +431,8 @@
   function justify(ars, X, Y, Wd, Hd, g) { return layoutBest(ars, ars.map(function () { return false; }), X, Y, Wd, Hd, g); }
   // 照片牆上的說明：照片下緣漸層＋白字（說明（誰 拍））
   function tileCaption(p, r, t, withPlace) {
-    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = [withPlace ? r.place : '', capText(r)].filter(Boolean).join('｜');
+    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = withPlace ? (r.place || '') : '';
+    if (capNo[r.id]) badge(p, capNo[r.id], t.x + 2.6, t.y + 2.6);
     var sz = Math.min(2.4, Math.max(1.8, t.w / 18)), aw = textW(attr, sz * 0.92, SANS, 700);
     var g = c.createLinearGradient(0, p.PY(t.y + t.h - 7), 0, p.PY(t.y + t.h));
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
@@ -435,14 +469,14 @@
     var A = window.JournalAPI, size = SIZES[o.size];
     var items = A.items().filter(function (r) { return o.authors.indexOf(A.who(r)) >= 0; });
     var photos = items.filter(A.isPhoto).sort(A.byTime);
-    return preloadDims(photos).then(function () {
+    return preloadDims(photos.concat([o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, o.backBlob ? { id: '__back', blob: o.backBlob } : null].filter(Boolean))).then(function () {
       var PW = size.land ? 100 * size.w / size.h : 100, H = size.land ? 100 : 100 * size.h / size.w;
-      var used = {}, cover = photos.filter(function (r) { return r.id === o.coverId; })[0] || photos[0] || null;
-      if (cover) used[cover.id] = 1;
+      var used = {};
+      var cover = o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, back = o.backBlob ? { id: '__back', blob: o.backBlob } : null;
       var pick = function (pred) { var r = photos.filter(function (x) { return !used[x.id] && (!pred || pred(x)); })[0] || null; if (r) used[r.id] = 1; return r; };
       var land = function (r) { return (dims[r.id] || 1.3) >= 1.15; }, tall = function (r) { return (dims[r.id] || 1) < 0.95; };
       var L = [{ t: 'cover', photo: cover }];
-      L.push({ t: 'inside', photo: size.land ? (pick(land) || pick() || cover) : (pick(tall) || pick() || cover) });
+      L.push({ t: 'inside', photo: size.land ? (pick(land) || pick()) : (pick(tall) || pick()) });
       var toc = { t: 'toc', photos: [] }; L.push(toc);
       DAYS.forEach(function (day) {
         var its = items.filter(function (r) { return (A.effDay ? A.effDay(r) : r.day) === day.id; }).sort(A.byTime);
@@ -460,14 +494,12 @@
           var t = String(r.note || '').trim();
           if (!t || seenCap[t]) { capMode[r.id] = 'hide'; return; }
           seenCap[t] = 1;
-          capMode[r.id] = Array.from(t).length <= 11 && t.indexOf('\n') < 0 ? 'show' : 'card';
+          capMode[r.id] = 'show';
         });
         var groups = A.groupsFor(day, its).map(function (g) {
           return { pl: { name: g.place.name, label: A.placeTitle(g.place), kind: g.place.kind, n: g.place.n }, info: g.place.name ? infoOf(day, g.place.name) : '',
             photos: g.items.filter(function (r) { return A.isPhoto(r) && !used[r.id]; }),
-            notes: g.items.filter(A.isNote).concat(g.items.filter(function (r) { return A.isPhoto(r) && capMode[r.id] === 'card'; }).map(function (r) {
-              return { id: 'cap-' + r.id, kind: 'note', capCard: true, text: r.note, author: r.author, mine: r.mine, takenAt: r.takenAt, addedAt: r.addedAt, day: r.day, place: r.place };
-            })).sort(A.byTime) };
+            notes: g.items.filter(A.isNote) };
         }).filter(function (g) { return g.photos.length || g.notes.length; });
         var textSeq = function (g, spec, inlineN) {
           var s = [{ t: 'head', pl: g.pl, h: 11 }];
@@ -487,7 +519,7 @@
           var routeN = clamp(wrap(stopsLine(day), 3, SANS, 600, 86), 2).length, heroH = 0, dayPages = null;
           // 最後一頁只剩一點點時，把開場大照片縮小一些，避免浪費一頁
           [0.4, 0.31, 0.24].some(function (k) {
-            heroH = Math.min(H * k, hero ? 100 / (dims[hero.id] || 1.5) : H * k); dayPages = paginate(seq, heroH + 7.5 + 13.5 + (routeN - 1) * 4.2 + 4, H, spec, 10);
+            heroH = Math.min(H * k, hero ? 100 / (dims[hero.id] || 1.5) : H * k); dayPages = paginate(seq, heroH + 7.5 + 13.5 + (routeN - 1) * 4.2 + 4, H, spec, 10, hero && capText(hero) ? capEntryLines(hero, spec.w).length * CL + 3.2 : 0);
             return dayPages.length === 1 || dayPages[dayPages.length - 1].items.length >= 2;
           });
           dayPages.forEach(function (pg, k) {
@@ -527,7 +559,7 @@
       });
       toc.photos = [pick(), pick(), pick()].filter(Boolean);
       if (toc.photos.length < 3) toc.photos = photos.slice(0, 3);
-      var end = { t: 'end', photos: photos.slice(-4) };
+      var end = { t: 'end', photo: back, photos: [] };
       var interior = L.length - 1 + 1;
       var target = o.pad ? Math.max(size.tt ? 40 : 8, Math.ceil(interior / 8) * 8) : interior, mi = 0;
       while (interior++ < target) L.push({ t: 'memo', i: mi++ });
@@ -559,7 +591,11 @@
     var H = bk.H, c = p.c, A = window.JournalAPI;
     p.bg('#6F4A2E');
     if (img) p.imgSafe(img, p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b, 0, 0, Wc, H);
-    else { stripes(p, 'cover', 0.9); leaves(p, 'cv', [[20, 40, 8], [70, 70, 10], [40, 100, 7], [80, 30, 6]]); }
+    else {   // 沒有上傳封面圖：酒紅底＋大字「北京」浮水印＋銀杏楓葉
+      p.bg('#8A2E28');
+      c.save(); c.globalAlpha = 0.08; p.text('北京', Wc / 2, H * 0.62, Math.min(Wc, H) * 0.42, SERIF, 900, '#FFF3C4', 'center'); c.restore();
+      leaves(p, 'cv', [[Wc * 0.18, H * 0.38, 7], [Wc * 0.72, H * 0.45, 9], [Wc * 0.4, H * 0.55, 6], [Wc * 0.85, H * 0.3, 5], [Wc * 0.3, H * 0.25, 4]]);
+    }
     grad(p, -p.b, H * 0.34, 0.5, 0); grad(p, H * 0.55, H + p.b, 0, 0.62);
     var ms = Math.min(Wc * 0.2, H * 0.15), mx = 5;
     var mw = masthead(p, mx, 4 + ms * 0.95, ms, C.cream, true);
@@ -687,7 +723,10 @@
       p.text(clamp(wrap(d.short, 6.4, SERIF, 900, 86), 1)[0], 6, y + 8, 6.4, SERIF, 900, C.olive);
       p.lines(clamp(wrap(stopsLine(d), 3, SANS, 600, 86), 2), 6.2, y + 13.5, 3, 4.2, SANS, 600, C.ink);
     } else topBar(p, d);
+    var list = numberCaps([pg.first ? pg.hero : null].concat(pg.lay.items.filter(function (e) { return e.k === 'photo'; }).map(function (e) { return e.it.r; })));
+    if (pg.first && pg.hero && capNo[pg.hero.id]) badge(p, capNo[pg.hero.id], 3.5, pg.heroH - 3.5);
     drawItems(p, pg, imgs);
+    drawCapBlock(p, list, pg.lay.spec.x0, pg.lay.spec.w, H - 8);
     folio(p, pg.n);
   }
 
@@ -696,7 +735,9 @@
     var H = bk.H, PW = bk.PW;
     p.bg(C.paper);
     topBar(p, pg.day, pg.place);
-    mosaic(p, pg.photos, imgs, 4, 10.5, PW - 8, H - 17, !pg.place);
+    var list = numberCaps(pg.photos), ch = capBlockH(list, PW - 8);
+    mosaic(p, pg.photos, imgs, 4, 10.5, PW - 8, H - 17 - ch, !pg.place);
+    drawCapBlock(p, list, 4, PW - 8, H - 7);
     folio(p, pg.n);
   }
 
@@ -725,7 +766,9 @@
     var meals = function (x, y, lh) { d.meals.forEach(function (m, i) { maple(p, x + 2.3, y + i * lh - 1.2, 1.5, 0.2); p.text(m.type + '｜' + m.name, x + 6, y + i * lh, 2.4, SANS, 400, C.soft); }); };
     if (ar0 >= 1.3) {
       var hh = Math.min(H * 0.6, PW / ar0);
+      var hl = numberCaps([pg.hero]);
       if (imgs.hero) { p.imgSafe(imgs.hero, p.rx0, -p.b, p.rx1 - p.rx0, hh + p.b, 0, 0, PW, hh); tileCaption(p, pg.hero, { x: 0, y: 0, w: PW, h: hh }, false); }
+      drawCapBlock(p, hl, 6, 46, H - 8);
       p.rect(p.rx0, hh, p.rx1 - p.rx0, 0.6, C.olive);
       var y = hh + 9;
       p.text(d.label.toUpperCase(), 6, y, 4.2, LAT, 700, C.olive, 'left', 0.6);
@@ -736,8 +779,10 @@
       meals(tx, Math.min(yEnd + 2, H - 12), 4);
     } else {
       var sx = PW * 0.58;
+      var hl2 = numberCaps([pg.hero]);
       if (imgs.hero) { p.imgSafe(imgs.hero, -p.b, -p.b, sx + p.b, H + 2 * p.b, 0, 0, sx, H); tileCaption(p, pg.hero, { x: 0, y: 0, w: sx, h: H }, false); }
       else { p.rect(-p.b, -p.b, sx + p.b, H + 2 * p.b, '#E7DCC2'); leaves(p, 'lh' + d.id, [[20, 30, 8], [50, 55, 10], [30, 80, 7]]); }
+      drawCapBlock(p, hl2, sx + 6, PW - sx - 12, H - 8);
       p.rect(sx, -p.b, 0.6, H + 2 * p.b, C.olive);
       var x = sx + 6, w = PW - x - 6, y2 = 13;
       smallMast(p, x, y2, 3.4, C.olive);
@@ -761,7 +806,12 @@
     p.text(clamp(wrap(pg.day.short, 2.8, SANS, 700, 28), 1)[0], 5 + textW(pg.day.label.toUpperCase(), 2.6, LAT, 700) + 2, 6.9, 2.8, SANS, 700, C.ink);
     p.rect(5, 8.3, 40, 0.25, C.olive);
     drawItems(p, pg, imgs);
-    if (pg.photos.length) { p.rect(47.5, -p.b, PW - 47.5 + p.b, H + 2 * p.b, '#FFFFFF'); mosaic(p, pg.photos, imgs, 49, 3.5, PW - 52.5, H - 7, true); }
+    if (pg.photos.length) {
+      p.rect(47.5, -p.b, PW - 47.5 + p.b, H + 2 * p.b, '#FFFFFF');
+      var list = numberCaps(pg.photos), ch = capBlockH(list, PW - 52.5);
+      mosaic(p, pg.photos, imgs, 49, 3.5, PW - 52.5, H - 7 - ch, true);
+      drawCapBlock(p, list, 49, PW - 52.5, H - 2.5);
+    }
     else leaves(p, 'lsx' + pg.n, [[80, 40, 8], [105, 70, 6]]);
     p.rightPage = false; folio(p, pg.n);
   }
@@ -788,13 +838,15 @@
     c.beginPath(); c.ellipse(p.P(15), p.PY(15), p.L(1.6), p.L(2.6), -0.45, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.moveTo(p.P(16), p.PY(17.6)); c.lineTo(p.P(21), p.PY(28)); c.stroke();
     // 依照片原始比例排成相框牆（依拍攝時間排列、不裁切），說明寫在照片下緣
     var list = pg.photos.slice().sort(window.JournalAPI.byTime), fr = 1.4;
-    var tiles = justify(list.map(function (r) { return dims[r.id] || 1.33; }), 6 + fr, 31 + fr, PW - 12 - 2 * fr, H - 44 - 2 * fr, 3 + 2 * fr);
+    var caps = numberCaps(list), ch = capBlockH(caps, PW - 12);
+    var tiles = justify(list.map(function (r) { return dims[r.id] || 1.33; }), 6 + fr, 31 + fr, PW - 12 - 2 * fr, H - 44 - 2 * fr - ch, 3 + 2 * fr);
     list.forEach(function (r, i) {
       var t = tiles[i];
       p.shadow(true, 1, 0.3); p.rect(t.x - fr, t.y - fr, t.w + 2 * fr, t.h + 2 * fr, '#FFFFFF'); p.shadow(false);
       p.img(imgs[r.id], t.x, t.y, t.w, t.h);
       tileCaption(p, r, t, true);
     });
+    drawCapBlock(p, caps, 6, PW - 12, H - 11.5);
     p.rect(6, H - 9.5, PW - 12, 0.3, C.ink);
     folio(p, pg.n);
   }
@@ -823,6 +875,16 @@
   // 封底
   function drawEnd(p, bk, o, imgs) {
     var H = bk.H, PW = bk.PW, c = p.c, A = window.JournalAPI;
+    if (imgs[0]) {   // 自己上傳的封底圖：滿版，下方加上書名與日期
+      p.imgSafe(imgs[0], p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b, 0, 0, PW, H);
+      grad(p, H * 0.65, H + p.b, 0, 0.6);
+      p.shadow(true, 0.8, 0.2);
+      masthead(p, 8, H - 16, 9, C.cream);
+      p.text(A.tripRange() + '　' + o.title, 8, H - 9, 2.4, SANS, 400, C.cream);
+      p.text('Made with 相約北京', PW - 8, H - 9, 2.2, LAT, 700, C.cream, 'right');
+      p.shadow(false);
+      return;
+    }
     p.bg('#E4DFEC');
     c.save(); c.globalAlpha = 0.16; p.font(5, LAT, 700); c.fillStyle = '#6A5E7C'; c.textAlign = 'left';
     for (var y = 6, k = 0; y < H + 6; y += 7, k++) c.fillText("Let's travel again!  Let's travel again!  Let's travel again!  Let's travel again!", p.P(-10 - (k % 2) * 14), p.PY(y));
@@ -832,8 +894,7 @@
     p.text('TRAVEL BOOK', PW / 2, H * 0.42 + H * 0.088, 6.5, LAT, 700, 'rgba(255,255,255,.95)', 'center', 0.5);
     p.text('旅程結束，', 8, 20, 4.4, SERIF, 900, C.ink); p.text('回憶才正要開始。', 8, 26, 4.4, SERIF, 900, C.ink);
     p.lines(clamp(wrap(o.authors.join('、') + ' 共同記錄的北京之旅。下次，也一起出發吧！', 2.5, SANS, 400, 50), 3), 8, 33, 2.5, 3.8, SANS, 400, C.ink);
-    var gw = 15, gh = 19, gx = PW - 6 - 2 * gw - 2.5;
-    imgs.slice(0, 4).forEach(function (im, i) { var x = gx + (i % 2) * (gw + 2.5), y = 6 + Math.floor(i / 2) * (gh + 2.5); p.shadow(true, 0.8, 0.3); p.rect(x - 0.8, y - 0.8, gw + 1.6, gh + 1.6, '#FFFFFF'); p.shadow(false); p.img(im, x, y, gw, gh); });
+    leaves(p, 'endl', [[PW - 22, 14, 6], [PW - 12, 26, 4], [PW - 30, 30, 3.5]]);
     masthead(p, 8, H - 22, 10, C.olive);
     p.text(A.tripRange() + '　' + o.title, 8, H - 15, 2.4, SANS, 400, C.ink);
     p.text('Made with 相約北京', PW - 8, H - 8, 2.2, LAT, 700, C.soft, 'right');
@@ -841,8 +902,8 @@
 
   /* ---------- 輸出一頁 ---------- */
   function pageRecs(pg) {
-    if (pg.t === 'cover' || pg.t === 'inside') return pg.photo ? [pg.photo] : [];
-    if (pg.t === 'toc' || pg.t === 'end' || pg.t === 'food' || pg.t === 'wall') return pg.photos;
+    if (pg.t === 'cover' || pg.t === 'inside' || pg.t === 'end') return pg.photo ? [pg.photo] : [];
+    if (pg.t === 'toc' || pg.t === 'food' || pg.t === 'wall') return pg.photos;
     var rs = [];
     if (pg.lay) rs = pg.lay.items.filter(function (e) { return e.k === 'photo'; }).map(function (e) { return e.it.r; });
     if (pg.t === 'lside') rs = rs.concat(pg.photos);
@@ -852,7 +913,7 @@
   function render(bk, sheet, o, pm, hi) {
     var size = bk.size, pg = sheet.pages[0];
     var p = Pen({ mmW: size.w, mmH: size.h, dw: bk.PW, dh: bk.H }, pm);
-    p.W = bk.PW; p.region(0, -p.b, bk.PW + p.b); p.rightPage = pg.n % 2 === 1;
+    p.W = bk.PW; p.region(0, -p.b, bk.PW + p.b); p.rightPage = pg.n % 2 === 1; capNo = {};
     var recs = pageRecs(pg);
     return Promise.all(recs.map(function (r) { return loadImg(r, hi); })).then(function (imgs) {
       var map = {}; recs.forEach(function (r, i) { map[r.id] = imgs[i]; });
@@ -895,6 +956,12 @@
     });
   }
 
+  /* ---------- 封面／封底圖片存在這台裝置（IndexedDB，不會混進相簿） ---------- */
+  var assetDB = null;
+  function adb() { if (!assetDB) assetDB = new Promise(function (res, rej) { var r = indexedDB.open('bj-book', 1); r.onupgradeneeded = function () { r.result.createObjectStore('a'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; }); return assetDB; }
+  function assetGet(k) { return adb().then(function (d) { return new Promise(function (res) { var q = d.transaction('a').objectStore('a').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }).catch(function () { return null; }); }
+  function assetPut(k, v) { return adb().then(function (d) { var t = d.transaction('a', 'readwrite'), s2 = t.objectStore('a'); if (v) s2.put(v, k); else s2.delete(k); }).catch(function () {}); }
+
   /* ---------- 操作介面：設定 → 預覽 → 匯出 PDF / JPG ---------- */
   var LS_SUB = 'bjj-book-sub', LS_SIZE = 'bjj-book-size2';
   function loadScript(src, test) {
@@ -926,7 +993,8 @@
       '<div class="jr-label" style="margin-top:4px">書名</div><input class="jr-input" data-k="title" maxlength="24" value="' + esc(A.lsGet('bjj-book-title', '相約北京・六日遊記')) + '">' +
       '<div class="jr-label">副標題</div><input class="jr-input" data-k="sub" maxlength="30" value="' + esc(A.lsGet(LS_SUB, '漫步古都的秋日旅行')) + '">' +
       '<div class="jr-label">收錄誰的紀錄</div><div class="jr-chips" data-k="who"></div>' +
-      '<div class="jr-label">封面照片</div><div class="jr-strip" data-k="cover"></div>' +
+      '<div class="jr-label">封面與封底圖片</div><div class="bk-up"><div data-k="upc"></div><div data-k="upb"></div></div>' +
+      '<div class="jr-hint">自己選一張圖片當封面／封底（可以不選，會用設計好的圖案）。</div>' +
       '<div class="jr-label">印刷尺寸</div><div class="jr-chips" data-k="size"></div><div class="jr-hint" data-k="sizehint"></div>' +
       '<div class="jr-label">頁數</div><div class="jr-chips"><button class="jr-chip on" data-k="pad" type="button">補齊為 8 的倍數</button></div>' +
       '<div class="jr-hint">不夠的頁數會補上「旅途筆記」和「貼票根」頁，印好後可以親手寫、貼。</div>' +
@@ -935,13 +1003,22 @@
     var K = function (k) { return sheet.querySelector('[data-k="' + k + '"]'); };
     function drawWho() {
       K('who').innerHTML = names.map(function (n, i) { var its = all.filter(function (r) { return A.who(r) === n; }), p = its.filter(A.isPhoto).length; return '<button class="jr-chip' + (st.authors.indexOf(n) >= 0 ? ' on' : '') + '" data-n="' + esc(n) + '" type="button" style="--day-color:' + INK[i % INK.length] + '">' + esc(n) + '<small>📷' + p + ' ✍️' + (its.length - p) + '</small></button>'; }).join('');
-      Array.prototype.forEach.call(K('who').children, function (b) { b.onclick = function () { var n = b.dataset.n, i = st.authors.indexOf(n); if (i >= 0) st.authors.splice(i, 1); else st.authors.push(n); drawWho(); drawCoverPick(); }; });
+      Array.prototype.forEach.call(K('who').children, function (b) { b.onclick = function () { var n = b.dataset.n, i = st.authors.indexOf(n); if (i >= 0) st.authors.splice(i, 1); else st.authors.push(n); drawWho(); }; });
     }
-    function drawCoverPick() {
-      var ps = all.filter(function (r) { return A.isPhoto(r) && st.authors.indexOf(A.who(r)) >= 0; }).sort(A.byTime).slice(0, 60);
-      if (!ps.some(function (r) { return r.id === st.cover; })) { var pp = ps.filter(function (r) { return A.peopleKind && A.peopleKind(r) === 'p'; }); st.cover = (pp[0] || ps[0] || {}).id || null; }
-      K('cover').innerHTML = ps.length ? ps.map(function (r) { return '<button class="jr-thumb' + (r.id === st.cover ? ' sel' : '') + '" data-id="' + r.id + '" type="button"><img src="' + A.thumbURL(r) + '" alt=""><span class="jr-check" style="display:' + (r.id === st.cover ? 'flex' : 'none') + '">✓</span></button>'; }).join('') : '<div class="jr-hint">沒有照片，封面會用插畫</div>';
-      Array.prototype.forEach.call(K('cover').querySelectorAll('.jr-thumb'), function (b) { b.onclick = function () { st.cover = b.dataset.id; drawCoverPick(); }; });
+    // 封面／封底圖片：自己從手機選，存在這台裝置，下次做書還在
+    function slot(key, label) {
+      var box = K(key === 'cover' ? 'upc' : 'upb'), blob = st[key + 'Blob'];
+      if (st[key + 'Url']) { URL.revokeObjectURL(st[key + 'Url']); st[key + 'Url'] = null; }
+      var url = blob ? (st[key + 'Url'] = URL.createObjectURL(blob)) : '';
+      box.className = 'bk-slot' + (blob ? ' has' : '');
+      box.innerHTML = (blob ? '<img src="' + url + '" alt="">' : '<span class="ph">' + (key === 'cover' ? '📕' : '📗') + '</span>') +
+        '<b>' + label + '</b><div class="row"><button class="jr-btn" data-a="pick" type="button">' + (blob ? '更換' : '選擇圖片') + '</button>' + (blob ? '<button class="jr-btn ghost" data-a="rm" type="button">移除</button>' : '') + '</div>';
+      box.querySelector('[data-a="pick"]').onclick = function () {
+        var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+        inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; st[key + 'Blob'] = f; assetPut(key, f); slot(key, label); };
+        inp.click();
+      };
+      var rm = box.querySelector('[data-a="rm"]'); if (rm) rm.onclick = function () { st[key + 'Blob'] = null; assetPut(key, null); slot(key, label); };
     }
     function drawSize() {
       K('size').innerHTML = Object.keys(SIZES).map(function (k) { return '<button class="jr-chip' + (st.size === k ? ' on' : '') + '" data-s="' + k + '" type="button">' + SIZES[k].label + '</button>'; }).join('');
@@ -949,10 +1026,11 @@
       K('sizehint').textContent = SIZES[st.size].land ? '橫式：每一頁放左右兩個雜誌頁，翻開就像一本攤開的雜誌。' : SIZES[st.size].tt ? '直式寫真本：每頁一個雜誌頁，至少 40 頁。' : '文庫本：口袋大小，一般印刷廠都能印。';
     }
     K('pad').onclick = function () { st.pad = !st.pad; K('pad').classList.toggle('on', st.pad); };
-    drawWho(); drawCoverPick(); drawSize();
+    drawWho(); drawSize(); slot('cover', '封面'); slot('back', '封底');
+    Promise.all([assetGet('cover'), assetGet('back')]).then(function (v) { if (v[0]) { st.coverBlob = v[0]; slot('cover', '封面'); } if (v[1]) { st.backBlob = v[1]; slot('back', '封底'); } });
     K('go').onclick = function () {
       if (!st.authors.length) { A.toast('至少選一位記錄者'); return; }
-      var o = { title: K('title').value.trim() || '相約北京', sub: K('sub').value.trim(), authors: names.filter(function (n) { return st.authors.indexOf(n) >= 0; }), allNames: names, coverId: st.cover, size: st.size, pad: st.pad };
+      var o = { title: K('title').value.trim() || '相約北京', sub: K('sub').value.trim(), authors: names.filter(function (n) { return st.authors.indexOf(n) >= 0; }), allNames: names, coverBlob: st.coverBlob || null, backBlob: st.backBlob || null, size: st.size, pad: st.pad };
       A.lsSet('bjj-book-title', o.title); A.lsSet(LS_SUB, o.sub); A.lsSet(LS_SIZE, o.size);
       sheet.close(); setTimeout(function () { openViewer(o); }, 220);
     };
