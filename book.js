@@ -431,7 +431,7 @@
   function justify(ars, X, Y, Wd, Hd, g) { return layoutBest(ars, ars.map(function () { return false; }), X, Y, Wd, Hd, g); }
   // 照片牆上的說明：照片下緣漸層＋白字（說明（誰 拍））
   function tileCaption(p, r, t, withPlace) {
-    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = withPlace ? (r.place || '') : '';
+    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = '';   // 照片上只標「誰拍」，地點寫在頁首
     if (capNo[r.id]) badge(p, capNo[r.id], t.x + 2.6, t.y + 2.6);
     var sz = Math.min(2.4, Math.max(1.8, t.w / 18)), aw = textW(attr, sz * 0.92, SANS, 700);
     var g = c.createLinearGradient(0, p.PY(t.y + t.h - 7), 0, p.PY(t.y + t.h));
@@ -488,7 +488,12 @@
         var mealNames = []; DAYS.forEach(function (dd) { dd.meals.forEach(function (m) { mealNames.push(m.name); }); });
         var mealPh = dayPhotos.filter(function (r) { return !used[r.id] && mealNames.indexOf(r.place) >= 0; });
         var foodPages = [], foodCap = size.land ? 6 : 6;
-        if (mealPh.length >= 4) { chunkPhotos(mealPh, foodCap).forEach(function (ch) { foodPages.push({ t: 'food', day: day, photos: ch }); }); mealPh.forEach(function (r) { used[r.id] = 1; }); }
+        if (mealPh.length >= 4) {   // 依餐廳分頁，標題寫餐廳名稱
+          var byRest = [], seenR = {};
+          mealPh.forEach(function (r) { var k = r.place || ''; if (!seenR[k]) { seenR[k] = []; byRest.push(k); } seenR[k].push(r); });
+          byRest.forEach(function (k) { chunkPhotos(seenR[k], foodCap).forEach(function (ch) { foodPages.push({ t: 'food', day: day, place: k, photos: ch }); }); });
+          mealPh.forEach(function (r) { used[r.id] = 1; });
+        }
         var seenCap = {};
         its.filter(A.isPhoto).forEach(function (r) {
           var t = String(r.note || '').trim();
@@ -534,25 +539,25 @@
           var est = function (g) { return 12 + (g.info ? 20 : 0) + g.notes.reduce(function (a, r) { return a + noteGeom(r, 40, wrap(r.text, NS, SANS, 400, 34)) + GAP; }, 0); };
           groups.forEach(function (g) {
             var h = est(g);
-            if (!chunk || (chunk.ph.length && chunk.ph.length + g.photos.length > 5) || chunk.h + h > H - 14) { chunk = { gs: [], ph: [], h: 0 }; chunks.push(chunk); }
+            if (!chunk || (g.photos.length && chunk.ph.length) || chunk.h + h > H - 14) { chunk = { gs: [], ph: [], h: 0 }; chunks.push(chunk); }   // 每個有照片的地點自成一頁
             chunk.gs.push(g); chunk.h += h; chunk.ph = chunk.ph.concat(g.photos);
           });
           chunks.forEach(function (ch) {
             var seq2 = []; ch.gs.forEach(function (g) { seq2 = seq2.concat(textSeq(g, side, 0)); });
             if (!ch.ph.length) { paginate(ch.gs.reduce(function (a, g) { return a.concat(textSeq(g, wide, 2)); }, []), 10, H, wide, 10).forEach(function (pg) { L.push({ t: 'ltext', day: day, lay: pg }); }); return; }
-            var pgs = paginate(seq2, 10, H, side, 10), byKey = {};
+            var pgs = paginate(seq2, 10, H, side, 18), byKey = {};
             ch.gs.forEach(function (g) { byKey[g.pl.name + '|' + g.pl.label] = g; });
-            var pending = [];
+            var pending = [], phPlace = (ch.gs.filter(function (g) { return g.photos.length; })[0] || ch.gs[0]).pl.label;
             pgs.forEach(function (pg, k) {
               var own = [];
               pg.heads.forEach(function (key) { var g = byKey[key]; if (g) own = own.concat(g.photos); });
               // 這頁沒有自己的照片時，先用上一頁放不下的照片，右側不留白
               if (!own.length) { own = pending; pending = []; }
-              else if (pending.length) { chunkPhotos(pending, 7).forEach(function (pp) { L.push({ t: 'wall', day: day, place: '', photos: pp }); }); pending = []; }
-              L.push({ t: 'lside', day: day, lay: pg, photos: own.slice(0, 5) });
+              else if (pending.length) { chunkPhotos(pending, 7).forEach(function (pp) { L.push({ t: 'wall', day: day, place: phPlace, photos: pp }); }); pending = []; }
+              L.push({ t: 'lside', day: day, lay: pg, photos: own.slice(0, 5), cont: !pg.heads.length ? phPlace : '' });
               pending = own.slice(5);
             });
-            if (pending.length) chunkPhotos(pending, 7).forEach(function (pp) { L.push({ t: 'wall', day: day, place: '', photos: pp }); });
+            if (pending.length) chunkPhotos(pending, 7).forEach(function (pp) { L.push({ t: 'wall', day: day, place: phPlace, photos: pp }); });
           });
         }
         foodPages.forEach(function (fp) { L.push(fp); });
@@ -722,7 +727,10 @@
       p.text(d.label.toUpperCase() + '　' + dayDateLabel(d), 6, y, 2.6, SANS, 700, C.olive, 'left', 0.2);
       p.text(clamp(wrap(d.short, 6.4, SERIF, 900, 86), 1)[0], 6, y + 8, 6.4, SERIF, 900, C.olive);
       p.lines(clamp(wrap(stopsLine(d), 3, SANS, 600, 86), 2), 6.2, y + 13.5, 3, 4.2, SANS, 600, C.ink);
-    } else topBar(p, d);
+    } else {   // 續頁：頁首寫上這頁接續的地點
+      var f0 = pg.lay.items[0], pl0 = f0 && f0.k !== 'head' && f0.it && f0.it.r ? f0.it.r.place : '';
+      topBar(p, d, pl0 ? pl0 + '（續）' : '');
+    }
     var list = numberCaps([pg.first ? pg.hero : null].concat(pg.lay.items.filter(function (e) { return e.k === 'photo'; }).map(function (e) { return e.it.r; })));
     if (pg.first && pg.hero && capNo[pg.hero.id]) badge(p, capNo[pg.hero.id], 3.5, pg.heroH - 3.5);
     drawItems(p, pg, imgs);
@@ -805,6 +813,7 @@
     p.text(pg.day.label.toUpperCase(), 5, 6.8, 2.6, LAT, 700, C.olive, 'left', 0.6);
     p.text(clamp(wrap(pg.day.short, 2.8, SANS, 700, 28), 1)[0], 5 + textW(pg.day.label.toUpperCase(), 2.6, LAT, 700) + 2, 6.9, 2.8, SANS, 700, C.ink);
     p.rect(5, 8.3, 40, 0.25, C.olive);
+    if (pg.cont) p.text(clamp(wrap(pg.cont + '（續）', 3.6, SANS, 700, 40), 1)[0], 5, 14.5, 3.6, SANS, 700, C.ink);
     drawItems(p, pg, imgs);
     if (pg.photos.length) {
       p.rect(47.5, -p.b, PW - 47.5 + p.b, H + 2 * p.b, '#FFFFFF');
@@ -831,7 +840,7 @@
     c.restore();
     p.rect(6, 10, PW - 12, 0.3, C.ink);
     p.text('旅途美食', PW - 6, 20, 6, SERIF, 900, C.ink, 'right');
-    p.text(pg.day.label + '｜' + pg.day.short, PW - 6, 25, 2.4, SANS, 400, C.ink, 'right');
+    p.text(pg.day.label + '｜' + (pg.place || pg.day.short), PW - 6, 25, 2.6, SANS, 700, C.ink, 'right');
     c.strokeStyle = '#9C8F82'; c.lineWidth = p.L(0.45); c.lineCap = 'round';
     c.beginPath(); c.moveTo(p.P(9), p.PY(13)); c.lineTo(p.P(16), p.PY(28)); c.stroke();
     for (var t = 0; t < 3; t++) { c.beginPath(); c.moveTo(p.P(7.6 + t * 1.3), p.PY(12.5)); c.lineTo(p.P(9.6 + t * 1.1), p.PY(17)); c.stroke(); }
