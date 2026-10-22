@@ -355,15 +355,16 @@
   function layoutRows(ars, pe, X, Y, Wd, Hd, g) {
     var n = ars.length, best = null, idx = ars.map(function (a, i) { return i; });
     var orders = [idx];
-    if (pe.some(Boolean) && !pe.every(Boolean)) orders.push(idx.slice().sort(function (a, b) { return (pe[b] - pe[a]) || a - b; }), idx.slice().sort(function (a, b) { return (pe[a] - pe[b]) || a - b; }));
     var limit = n <= 10 ? (1 << (n - 1)) : 0;
     var tryRows = function (rows, oi) {
       if (rows.length > 4) return;
       var hs = rows.map(function (rw) { return (Wd - g * (rw.length - 1)) / rw.reduce(function (a, i) { return a + ars[i]; }, 0); });
       var sumH = hs.reduce(function (a, b) { return a + b; }, 0), s = Math.min(1, (Hd - g * (rows.length - 1)) / sumH);
-      var used = 0, pa = 0, sa = 0;
-      rows.forEach(function (rw, ri) { rw.forEach(function (i) { var a = (hs[ri] * s * ars[i]) * (hs[ri] * s) / (Wd * Hd); used += a; if (pe[i]) pa += a; else sa += a; }); });
-      var score = -used * 3 - pa * 2 + sa * 0.6 + oi * 0.03 + rows.filter(function (rw) { return rw.length > 4; }).length * 0.6;
+      var used = 0, pa = 0, sa = 0, amax = 0, amin = 1e9;
+      rows.forEach(function (rw, ri) { rw.forEach(function (i) { var a = (hs[ri] * s * ars[i]) * (hs[ri] * s) / (Wd * Hd); used += a; if (pe[i]) pa += a; else { sa += a; if (a > amax) amax = a; if (a < amin) amin = a; } }); });
+      // 大小差太多（一張超大、其他很小）會很難看，加上懲罰；人物照例外
+      var spread = amax > 0 && amin < 1e9 ? Math.log(amax / amin) : 0;
+      var score = -used * 3 - pa * 2 + sa * 0.4 + spread * 0.35 + oi * 0.03 + rows.filter(function (rw) { return rw.length > 4; }).length * 0.6;
       if (!best || score < best.score) best = { score: score, rows: rows, hs: hs, s: s };
     };
     orders.forEach(function (ord, oi) {
@@ -384,9 +385,17 @@
       rw.forEach(function (i) { var w = ars[i] * h; tiles[i] = { x: x, y: y, w: w, h: h }; x += w + g; });
       y += h + g;
     });
+    tiles.score = best.score;
     return tiles;
   }
-  function justify(ars, X, Y, Wd, Hd, g) { return layoutRows(ars, ars.map(function () { return false; }), X, Y, Wd, Hd, g); }
+  // 同時試「分行」與「分欄」兩種排法（直式照片多時分欄比較好看），挑分數好的
+  function layoutBest(ars, pe, X, Y, Wd, Hd, g) {
+    var a = layoutRows(ars, pe, X, Y, Wd, Hd, g);
+    var bt = layoutRows(ars.map(function (v) { return 1 / v; }), pe, Y, X, Hd, Wd, g);
+    var b = bt.map(function (t) { return { x: t.y, y: t.x, w: t.h, h: t.w }; }); b.score = bt.score;
+    return a.score <= b.score ? a : b;
+  }
+  function justify(ars, X, Y, Wd, Hd, g) { return layoutBest(ars, ars.map(function () { return false; }), X, Y, Wd, Hd, g); }
   // 照片牆上的說明：照片下緣漸層＋白字（說明（誰 拍））
   function tileCaption(p, r, t, withPlace) {
     var c = p.c, attr = '（' + who(r) + ' 拍）', txt = [withPlace ? r.place : '', capText(r)].filter(Boolean).join('｜');
@@ -401,7 +410,7 @@
   function isPeople(r) { return window.JournalAPI.peopleKind ? window.JournalAPI.peopleKind(r) === 'p' : false; }
   // 有人物的照片給大格、風景照給小格：試遍各種分行方式與順序，挑「人物照面積最大、風景照較小、裁切最少」的排法
   function justifyW(recs, X, Y, Wd, Hd, g) {
-    return layoutRows(recs.map(function (r) { return dims[r.id] || 1.33; }), recs.map(isPeople), X, Y, Wd, Hd, g);
+    return layoutBest(recs.map(function (r) { return dims[r.id] || 1.33; }), recs.map(isPeople), X, Y, Wd, Hd, g);
   }
   function mosaic(p, recs, imgs, X, Y, Wd, Hd, withPlace) {
     var tiles = justifyW(recs, X, Y, Wd, Hd, 1.3);
@@ -647,7 +656,7 @@
     var PW = p.W, lab = d.label.toUpperCase();
     p.text(lab, 6, 6.8, 2.6, LAT, 700, C.olive, 'left', 0.6);
     var t = d.short + (extra ? '｜' + extra : '');
-    p.text(clamp(wrap(t, 3, SANS, 700, PW - 30), 1)[0], 6 + textW(lab, 2.6, LAT, 700) + 2.5, 6.9, 3, SANS, 700, C.ink);
+    p.text(clamp(wrap(t, 3, SANS, 700, PW - 30), 1)[0], 6 + textW(lab, 2.6, LAT, 700) + Array.from(lab).length * 0.6 + 3, 6.9, 3, SANS, 700, C.ink);
     p.rect(6, 8.3, PW - 12, 0.25, C.olive);
   }
   function drawItems(p, pg, imgs) {
@@ -777,15 +786,14 @@
     c.beginPath(); c.moveTo(p.P(9), p.PY(13)); c.lineTo(p.P(16), p.PY(28)); c.stroke();
     for (var t = 0; t < 3; t++) { c.beginPath(); c.moveTo(p.P(7.6 + t * 1.3), p.PY(12.5)); c.lineTo(p.P(9.6 + t * 1.1), p.PY(17)); c.stroke(); }
     c.beginPath(); c.ellipse(p.P(15), p.PY(15), p.L(1.6), p.L(2.6), -0.45, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.moveTo(p.P(16), p.PY(17.6)); c.lineTo(p.P(21), p.PY(28)); c.stroke();
-    var rows = Math.max(bk.size.land ? 1 : 2, Math.ceil(pg.photos.length / cols)), gy = 31, gap = 4;
-    var cw = (PW - 12 - (cols - 1) * gap) / cols, ch = (H - 12 - gy - (rows - 1) * gap) / rows;
-    pg.photos.forEach(function (r, i) {
-      var x = 6 + (i % cols) * (cw + gap), y = gy + Math.floor(i / cols) * (ch + gap);
-      p.shadow(true, 1, 0.3); p.rect(x, y, cw, ch, '#EFE6D6'); p.shadow(false);
-      p.img(imgs[r.id], x + 1.6, y + 1.6, cw - 3.2, ch - 9);
-      var cap = [r.place, capText(r)].filter(Boolean).join('｜');
-      p.text(clamp(wrap(cap, 2.3, SANS, 400, cw - 6 - textW('（' + who(r) + ' 拍）', 2.1, SANS, 700)), 1)[0], x + 2, y + ch - 3.4, 2.3, SANS, 400, C.ink);
-      p.text('（' + who(r) + ' 拍）', x + cw - 2, y + ch - 3.4, 2.1, SANS, 700, attrCol(r), 'right');
+    // 依照片原始比例排成相框牆（依拍攝時間排列、不裁切），說明寫在照片下緣
+    var list = pg.photos.slice().sort(window.JournalAPI.byTime), fr = 1.4;
+    var tiles = justify(list.map(function (r) { return dims[r.id] || 1.33; }), 6 + fr, 31 + fr, PW - 12 - 2 * fr, H - 44 - 2 * fr, 3 + 2 * fr);
+    list.forEach(function (r, i) {
+      var t = tiles[i];
+      p.shadow(true, 1, 0.3); p.rect(t.x - fr, t.y - fr, t.w + 2 * fr, t.h + 2 * fr, '#FFFFFF'); p.shadow(false);
+      p.img(imgs[r.id], t.x, t.y, t.w, t.h);
+      tileCaption(p, r, t, true);
     });
     p.rect(6, H - 9.5, PW - 12, 0.3, C.ink);
     folio(p, pg.n);
