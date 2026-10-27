@@ -117,28 +117,30 @@
     return ['北京', 'Day' + r.day, safe(r.place), safe(r.mine ? author() : r.author), time || String(i + 1)].filter(Boolean).join('_') + '.' + ext;
   }
   function downloadFiles(files) {
-    files.forEach(function (f, i) {
-      setTimeout(function () {
-        var a = document.createElement('a'), u = URL.createObjectURL(f);
-        a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
-      }, i * 400);
-    });
+    var one = function (f) {
+      var a = document.createElement('a'), u = URL.createObjectURL(f);
+      a.href = u; a.download = f.name; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 300000);
+    };
+    files.forEach(function (f, i) { if (i === 0) one(f); else setTimeout(function () { one(f); }, i * 400); });   // 第一個檔案立刻下載，避免被瀏覽器擋
   }
   // 手機：叫出系統分享選單（可「儲存影像」到相簿）；電腦：直接下載原始檔
-  function saveFiles(files, okMsg) {
-    if (isTouch && navigator.canShare && navigator.share) {
+  // 照片：手機上用分享選單（可直接存到相簿）；PDF、ZIP 等大檔案一律直接下載（分享選單常因檔案太大而失敗）
+  function saveFiles(files, okMsg, retried) {
+    var allImg = files.every(function (f) { return /^image\//.test(f.type); });
+    var total = files.reduce(function (a, f) { return a + (f.size || 0); }, 0);
+    if (isTouch && allImg && total < 40 * 1048576 && navigator.canShare && navigator.share) {
       var ok = false; try { ok = navigator.canShare({ files: files }); } catch (e) {}
       if (ok) {
         navigator.share({ files: files }).catch(function (e) {
           if (e && e.name === 'AbortError') return;
-          if (e && e.name === 'NotAllowedError') { toast('再按一次就能儲存', { label: '儲存', fn: function () { saveFiles(files, okMsg); } }); return; }
+          if (e && e.name === 'NotAllowedError' && !retried) { toast('再按一次就能儲存', { label: '儲存', fn: function () { saveFiles(files, okMsg, true); } }); return; }
           downloadFiles(files); toast(okMsg);
         });
         return;
       }
     }
-    downloadFiles(files); toast(okMsg);
+    downloadFiles(files); toast((okMsg || '已開始下載') + (allImg ? '' : '，可在「下載」或「檔案」App 找到'));
   }
   function saveRecords(recs) {
     var files = recs.map(function (r, i) { return new File([r.blob], fileName(r, i), { type: r.type || r.blob.type || 'image/jpeg' }); });
