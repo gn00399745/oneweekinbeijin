@@ -639,13 +639,14 @@
     p.shadow(true, 1, 0.2);
     c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = p.L(0.3); c.beginPath(); c.moveTo(p.P(PW - 27), p.PY(H * 0.12)); c.lineTo(p.P(PW - 36), p.PY(H * 0.62)); c.stroke();
     var fs = 4.3 * Math.max(0.8, k);
-    p.vtext('這趟北京之旅，', PW - 16, H * 0.16, fs, fs * 1.3, H * 0.7, SERIF, 700, '#FFFFFF');
-    p.vtext('總有一天會變成我們的「北京note」。', PW - 16 - fs * 1.3, H * 0.16, fs, fs * 1.3, H * 0.72, SERIF, 700, '#FFFFFF');
+    // 第一頁標語：逗號後換到下一欄，由右至左直書
+    var parts = String(o.slogan || DEF_SLOGAN).replace(/([，、])/g, '$1\u0001').split('\u0001').filter(Boolean), xr = PW - 16;
+    parts.forEach(function (t) { var cols = p.vtext(t, xr, H * 0.16, fs, fs * 1.3, H * 0.7, SERIF, 700, '#FFFFFF'); xr -= cols * fs * 1.3; });
     p.shadow(false);
-    var bx = 7, bw = 22, bh = 34, byy = H - bh - 9;
+    var bx = 7, bw = 22, bh = 44, byy = H - bh - 9;
     p.rect(bx, byy, bw, bh, 'rgba(160,40,40,.92)');
     c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = p.L(0.25); c.strokeRect(p.P(bx + 1.2), p.PY(byy + 1.2), p.L(bw - 2.4), p.L(bh - 2.4));
-    p.vtext('一起寫下我們的旅行。', bx + bw - 5, byy + 4, 4, 5.4, 20, SERIF, 900, '#FFFFFF');
+    p.vtext('北京，', bx + bw - 6, byy + 4, 4, 5.4, 28, SERIF, 900, '#FFFFFF'); p.vtext('我們來過了。', bx + bw - 6 - 5.6, byy + 4, 4, 5.4, 28, SERIF, 900, '#FFFFFF');
     p.text('Let\'s make our own', bx + bw / 2, byy + bh - 6, 1.6, LAT, 400, '#FFFFFF', 'center');
     p.text('travel magazine!', bx + bw / 2, byy + bh - 4, 1.6, LAT, 400, '#FFFFFF', 'center');
   }
@@ -959,7 +960,7 @@
       if (!document.fonts || !document.fonts.load) return;
       var sample = String(text || '').slice(0, 4000);
       var loads = ['20px "Pacifico"', '700 20px "Caveat"', '700 20px "Josefin Sans"', '400 20px "Josefin Sans"'].map(function (f) { return document.fonts.load(f, 'note Memo 0123'); });
-      loads.push(document.fonts.load('900 20px "Noto Serif TC"', sample + '北京一起寫下我們的旅行總有一天會變成秋號家族卷頭特集目錄旅途美食筆記貼票根的地方程結束回憶才正要開始'));
+      loads.push(document.fonts.load('900 20px "Noto Serif TC"', sample + '北京我們來過了走過的每一條胡同都成回家後最想念風景一起寫下旅行總有一天會變成秋號家族卷頭特集目錄旅途美食筆記貼票根的地方程結束回憶才正要開始'));
       loads.push(document.fonts.load('700 20px "Noto Serif TC"', sample));
       return Promise.race([Promise.all(loads).catch(function () {}), new Promise(function (r) { setTimeout(r, 6000); })]);
     });
@@ -972,7 +973,8 @@
   function assetPut(k, v) { return adb().then(function (d) { var t = d.transaction('a', 'readwrite'), s2 = t.objectStore('a'); if (v) s2.put(v, k); else s2.delete(k); }).catch(function () {}); }
 
   /* ---------- 操作介面：設定 → 預覽 → 匯出 PDF / JPG ---------- */
-  var LS_SUB = 'bjj-book-sub', LS_SIZE = 'bjj-book-size2';
+  var DEF_SLOGAN = '走過的每一條胡同，都成了回家後最想念的風景。';
+  var LS_SUB = 'bjj-book-sub', LS_SLOGAN = 'bjj-book-slogan', LS_SIZE = 'bjj-book-size2';
   function loadScript(src, test) {
     if (test()) return Promise.resolve();
     return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = function () { test() ? res() : rej(new Error('load')); }; s.onerror = function () { rej(new Error('load')); }; document.head.appendChild(s); });
@@ -1001,6 +1003,7 @@
     var html =
       '<div class="jr-label" style="margin-top:4px">書名</div><input class="jr-input" data-k="title" maxlength="24" value="' + esc(A.lsGet('bjj-book-title', '相約北京・六日遊記')) + '">' +
       '<div class="jr-label">副標題</div><input class="jr-input" data-k="sub" maxlength="30" value="' + esc(A.lsGet(LS_SUB, '漫步古都的秋日旅行')) + '">' +
+      '<div class="jr-label">第一頁標語</div><input class="jr-input" data-k="slogan" maxlength="30" value="' + esc(A.lsGet(LS_SLOGAN, DEF_SLOGAN)) + '"><div class="jr-hint">直書排在第一頁，逗號後會換一行</div>' +
       '<div class="jr-label">收錄誰的紀錄</div><div class="jr-chips" data-k="who"></div>' +
       '<div class="jr-label">封面、第一頁、封底圖片</div><div class="bk-up"><div data-k="upc"></div><div data-k="upi"></div><div data-k="upb"></div></div>' +
       '<div class="jr-hint">自己選圖片（可以不選：封面、封底會用設計好的圖案，第一頁會從相簿挑一張）。</div>' +
@@ -1042,7 +1045,7 @@
     K('go').onclick = function () {
       if (!st.authors.length) { A.toast('至少選一位記錄者'); return; }
       var o = { title: K('title').value.trim() || '相約北京', sub: K('sub').value.trim(), authors: names.filter(function (n) { return st.authors.indexOf(n) >= 0; }), allNames: names, coverBlob: st.coverBlob || null, insideBlob: st.insideBlob || null, backBlob: st.backBlob || null, size: st.size, pad: st.pad };
-      A.lsSet('bjj-book-title', o.title); A.lsSet(LS_SUB, o.sub); A.lsSet(LS_SIZE, o.size);
+      o.slogan = K('slogan').value.trim() || DEF_SLOGAN; A.lsSet('bjj-book-title', o.title); A.lsSet(LS_SUB, o.sub); A.lsSet(LS_SLOGAN, o.slogan); A.lsSet(LS_SIZE, o.size);
       sheet.close(); setTimeout(function () { openViewer(o); }, 220);
     };
   }
@@ -1061,7 +1064,7 @@
     var Q = function (k) { return v.querySelector('[data-b="' + k + '"]'); }, urls = [];
     Q('x').onclick = function () { alive = false; v.classList.remove('show'); setTimeout(function () { urls.forEach(URL.revokeObjectURL); v.remove(); A.unlock(); }, 200); };
     Q('guide').onchange = function () { v.classList.toggle('guides', Q('guide').checked); };
-    var allText = o.title + o.sub + o.authors.join('') + A.items().map(function (r) { return (r.text || '') + (r.note || '') + (r.place || ''); }).join('') + DAYS.map(function (d) { return d.short + d.label; }).join('');
+    var allText = o.title + o.sub + (o.slogan || '') + o.authors.join('') + A.items().map(function (r) { return (r.text || '') + (r.note || '') + (r.place || ''); }).join('') + DAYS.map(function (d) { return d.short + d.label; }).join('');
     var sel = A.items().filter(function (r) { return A.isPhoto(r) && o.authors.indexOf(A.who(r)) >= 0; });
     var detect = A.detectPeople ? A.detectPeople(sel, function (i, n) { if (alive) Q('prog').textContent = '辨識合照與人物照片… ' + i + ' / ' + n; }).catch(function () { if (alive) Q('prog').textContent = '無法辨識人物（可能沒有網路），照片會以一般大小排版'; }) : Promise.resolve();
     detect.then(function () { return ensureFonts(allText); }).then(function () { return build(o); }).then(function (b) {
