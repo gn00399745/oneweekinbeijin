@@ -537,7 +537,11 @@
       (function next() {
         if (i >= recs.length) { parts.push(']}'); res(new Blob(parts, { type: 'application/json' })); return; }
         var r = recs[i], m = JSON.stringify(metaOf(r)).slice(0, -1);
-        var done = function (s) { parts.push((i ? ',' : '') + s); i++; prog(i, recs.length); next(); };
+        var done = function (s) {
+          parts.push((i ? ',' : '') + s); i++; prog(i, recs.length);
+          if (parts.length > 6) parts = [new Blob(parts)];   // 隨時把文字併成 Blob，避免手機記憶體不足閃退
+          setTimeout(next, 0);
+        };
         if (isNote(r)) done(m + '}');
         else blobToDataURL(r.blob).then(function (data) { done(m + ',"data":"' + data + '"}'); }).catch(rej);
       })();
@@ -557,7 +561,7 @@
       '<button class="jr-btn gold block" data-x="fresh" type="button"' + (fresh.length ? '' : ' disabled') + '>🆕 只分享新增的（' + nf + ' 張照片、' + nn + ' 則見聞）</button>' +
       '<button class="jr-btn block" data-x="all" type="button"' + (ALL.length ? '' : ' disabled') + '>📦 分享全部紀錄</button>' +
       '<div data-k="out"></div></div>' +
-      '<div class="jr-card"><h4>📥 匯入家人朋友的紀錄</h4><p>選擇收到的 JSON 檔。已經有的會自動略過，同一個檔案匯入兩次也不會重複；對方修改過的見聞會更新成新版。</p>' +
+      '<div class="jr-card"><h4>📥 匯入家人朋友的紀錄</h4><p>選擇收到的 JSON 檔（分成好幾包時可以一次全選）。已經有的會自動略過，同一個檔案匯入兩次也不會重複；對方修改過的見聞會更新成新版。</p>' +
       '<button class="jr-btn primary block" data-x="import" type="button">選擇 JSON 檔匯入</button><div data-k="in"></div></div>' +
       '<div class="jr-hint" data-k="quota" style="text-align:center;margin-top:14px;"></div>';
     var sheet = openSheet('分享與匯入', html);
@@ -565,40 +569,65 @@
     if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(function (e) { if (e && e.quota) K('quota').textContent = '這個瀏覽器還能存放約 ' + mb(Math.max(0, e.quota - e.usage)); }).catch(function () {});
 
     K('me').addEventListener('input', function () { K('me').classList.remove('jr-invalid'); });
+    // 照片很多時一次打包會讓手機記憶體不足而閃退，所以分成好幾包（每包約 60 MB），一包一包打包、傳送
+    var PACK = 60 * 1048576;
     function doExport(recs, label) {
       var me = K('me').value.trim();
       if (!me) { K('me').classList.add('jr-invalid'); K('me').focus(); toast('請填寫必填欄位'); return; }
       lsSet(LS_AUTHOR, me); refresh();
       var out = K('out');
-      $$('[data-x="fresh"],[data-x="all"]', sheet).forEach(function (b) { b.disabled = true; });
-      out.innerHTML = '<div class="jr-hint" style="margin-top:12px;">打包中… <span data-k="pct">0</span> / ' + recs.length + '</div><div class="jr-progress"><i></i></div>';
       recs = recs.slice().sort(byTime);
-      buildExport(recs, function (i, n) { K('pct').textContent = i; $('.jr-progress i', out).style.width = (i / n * 100) + '%'; }).then(function (blob) {
-        var d = new Date(), w = safe(author());
-        var name = '北京紀錄_' + (w ? w + '_' : '') + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
-        var file = new File([blob], name, { type: 'application/json' });
-        var stamp = function () { lsSet(LS_LAST, new Date().toISOString()); };
-        var canShare = false; try { canShare = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) {}
-        out.innerHTML = '<div class="jr-card jr-ready"><div class="fname">✅ ' + esc(name) + '<br><small style="font-weight:500;color:var(--ink-soft)">' + esc(label) + '・' + mb(blob.size) + '</small></div>' +
-          (canShare ? '<button class="jr-btn primary block" data-y="send" type="button">📨 傳送（LINE、AirDrop…）</button>' : '') +
-          '<button class="jr-btn block" data-y="dl" type="button">⬇ 下載檔案到裝置</button></div>';
-        var send = out.querySelector('[data-y="send"]');
-        if (send) send.onclick = function () { navigator.share({ files: [file], title: '北京旅遊紀錄' }).then(function () { stamp(); toast('已送出！'); }).catch(function (e) { if (e && e.name !== 'AbortError') { downloadFiles([file]); stamp(); } }); };
-        out.querySelector('[data-y="dl"]').onclick = function () { downloadFiles([file]); stamp(); toast('已下載，可在「檔案」App 或下載資料夾找到'); };
-      }).catch(function () { out.innerHTML = '<div class="jr-hint" style="color:var(--red)">打包失敗，請改用「只分享新增的」再試。</div>'; });
+      var packs = [], cur = [], size = 0;
+      recs.forEach(function (r) { var z = isPhoto(r) ? (r.size || (r.blob && r.blob.size) || 0) * 1.37 : 600; if (cur.length && size + z > PACK) { packs.push(cur); cur = []; size = 0; } cur.push(r); size += z; });
+      if (cur.length) packs.push(cur);
+      var d0 = new Date(), w = safe(author()), stampName = pad(d0.getMonth() + 1) + pad(d0.getDate()) + '-' + pad(d0.getHours()) + pad(d0.getMinutes());
+      var doneSet = {}, busy = false;
+      var stamp = function () { if (Object.keys(doneSet).length === packs.length) { lsSet(LS_LAST, new Date().toISOString()); toast('全部 ' + packs.length + ' 包都傳好了！'); } };
+      out.innerHTML = '<div class="jr-card jr-ready"><div class="fname">' + esc(label) + '・共 ' + packs.length + ' 包</div>' +
+        (packs.length > 1 ? '<p style="margin:0 0 10px">照片比較多，分成 ' + packs.length + ' 個檔案。請一包一包按「傳送」，對方全部匯入就完整了（順序不拘）。</p>' : '') +
+        packs.map(function (pk, i) { var nP = pk.filter(isPhoto).length; return '<button class="jr-btn block" data-pack="' + i + '" type="button">📦 第 ' + (i + 1) + ' 包・' + nP + ' 張照片' + (pk.length - nP ? '、' + (pk.length - nP) + ' 則見聞' : '') + '</button>'; }).join('') + '</div>';
+      $$('[data-pack]', out).forEach(function (btn) {
+        btn.onclick = function () {
+          if (busy) { toast('上一包還在打包，請稍等'); return; }
+          busy = true;
+          var i = +btn.dataset.pack, pk = packs[i];
+          btn.disabled = true; btn.textContent = '打包中… 0 / ' + pk.length;
+          buildExport(pk, function (k, n) { btn.textContent = '打包中… ' + k + ' / ' + n; }).then(function (blob) {
+            busy = false;
+            var name = '北京紀錄_' + (w ? w + '_' : '') + stampName + (packs.length > 1 ? '_第' + (i + 1) + '包共' + packs.length + '包' : '') + '.json';
+            var file = new File([blob], name, { type: 'application/json' });
+            var canShare = false; try { canShare = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) {}
+            btn.disabled = false; btn.classList.add('primary');
+            btn.textContent = (canShare ? '📨 傳送' : '⬇ 下載') + '第 ' + (i + 1) + ' 包（' + mb(blob.size) + '）';
+            var fin = function () { doneSet[i] = 1; btn.classList.remove('primary'); btn.textContent = '✅ 第 ' + (i + 1) + ' 包已完成（再按可重送）'; stamp(); };
+            btn.onclick = function () {
+              if (canShare) navigator.share({ files: [file], title: '北京旅遊紀錄' }).then(fin).catch(function (e) { if (e && e.name === 'AbortError') return; downloadFiles([file]); fin(); toast('已下載，可在「下載」或「檔案」App 找到，再用 LINE 傳出'); });
+              else { downloadFiles([file]); fin(); toast('已下載，可在「下載」或「檔案」App 找到，再用 LINE 傳出'); }
+            };
+          }).catch(function () { busy = false; btn.disabled = false; btn.textContent = '⚠️ 第 ' + (i + 1) + ' 包打包失敗，按一下重試'; });
+        };
+      });
     }
     sheet.querySelector('[data-x="fresh"]').onclick = function () { doExport(fresh, '新增的 ' + fresh.length + ' 筆'); };
     sheet.querySelector('[data-x="all"]').onclick = function () { doExport(ALL, '全部 ' + ALL.length + ' 筆'); };
 
-    var jin = document.createElement('input'); jin.type = 'file'; jin.accept = '.json,application/json,text/plain'; jin.style.display = 'none'; sheet.appendChild(jin);
+    var jin = document.createElement('input'); jin.type = 'file'; jin.multiple = true; jin.accept = '.json,application/json,text/plain'; jin.style.display = 'none'; sheet.appendChild(jin);
     sheet.querySelector('[data-x="import"]').onclick = function () { jin.value = ''; jin.click(); };
-    jin.onchange = function () { var f = jin.files && jin.files[0]; if (f) importFile(f, K('in')); };
+    jin.onchange = function () {   // 可以一次選好幾包，依序匯入
+      var fs = Array.prototype.slice.call(jin.files || []), box = K('in'), k = 0;
+      box.innerHTML = '';
+      (function next() {
+        if (k >= fs.length) return;
+        var f = fs[k++], sub = document.createElement('div'); box.appendChild(sub);
+        Promise.resolve(importFile(f, sub)).then(function () { setTimeout(next, 0); }, function () { setTimeout(next, 0); });
+      })();
+    };
   }
 
   function importFile(file, box) {
     var err = function (m) { box.innerHTML = '<div class="jr-hint" style="color:var(--red);margin-top:12px;">' + esc(m) + '</div>'; };
     box.innerHTML = '<div class="jr-hint" style="margin-top:12px;">讀取檔案中…</div><div class="jr-progress"><i></i></div>';
-    reload().then(function () { return file.text(); }).then(function (txt) {
+    return reload().then(function () { return file.text(); }).then(function (txt) {
       var obj = null; try { obj = JSON.parse(txt); } catch (e) {}
       txt = null;
       var list = obj && obj.format === FORMAT ? (obj.items || obj.photos) : null;
