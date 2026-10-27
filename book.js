@@ -637,7 +637,6 @@
     if (img) p.imgSafe(img, p.rx0, -p.b, p.rx1 - p.rx0, H + 2 * p.b, 0, 0, PW, H); else stripes(p, 'inside', 0.8);
     grad(p, -p.b, H + p.b, 0.12, 0.32);
     p.shadow(true, 1, 0.2);
-    c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = p.L(0.3); c.beginPath(); c.moveTo(p.P(PW - 27), p.PY(H * 0.12)); c.lineTo(p.P(PW - 36), p.PY(H * 0.62)); c.stroke();
     var fs = 4.3 * Math.max(0.8, k);
     // 第一頁標語：逗號後換到下一欄，由右至左直書
     var parts = String(o.slogan || DEF_SLOGAN).replace(/([，、])/g, '$1\u0001').split('\u0001').filter(Boolean), xr = PW - 16;
