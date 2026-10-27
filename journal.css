@@ -333,11 +333,11 @@ body.jr-lock{ overflow:hidden; }
 body.jr-lock .hcts-install{ display:none !important; }
 
 /* 封面／封底圖片上傳 */
-.bk-up{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.bk-up{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .bk-slot{ border:2px dashed var(--line); border-radius:14px; padding:10px; text-align:center; background:var(--paper); }
 .bk-slot.has{ border-style:solid; border-color:var(--gold); }
-.bk-slot img{ width:100%; height:120px; object-fit:contain; border-radius:8px; background:#fff; display:block; margin-bottom:6px; }
-.bk-slot .ph{ display:flex; align-items:center; justify-content:center; height:120px; font-size:2.6rem; }
+.bk-slot img{ width:100%; height:96px; object-fit:contain; border-radius:8px; background:#fff; display:block; margin-bottom:6px; }
+.bk-slot .ph{ display:flex; align-items:center; justify-content:center; height:96px; font-size:2.6rem; }
 .bk-slot b{ display:block; font-size:.95rem; margin-bottom:6px; }
 .bk-slot .row{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
 .bk-slot .jr-btn{ min-height:40px; padding:6px 12px; font-size:.88rem; }

@@ -469,14 +469,14 @@
     var A = window.JournalAPI, size = SIZES[o.size];
     var items = A.items().filter(function (r) { return o.authors.indexOf(A.who(r)) >= 0; });
     var photos = items.filter(A.isPhoto).sort(A.byTime);
-    return preloadDims(photos.concat([o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, o.backBlob ? { id: '__back', blob: o.backBlob } : null].filter(Boolean))).then(function () {
+    return preloadDims(photos.concat([o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, o.backBlob ? { id: '__back', blob: o.backBlob } : null, o.insideBlob ? { id: '__inside', blob: o.insideBlob } : null].filter(Boolean))).then(function () {
       var PW = size.land ? 100 * size.w / size.h : 100, H = size.land ? 100 : 100 * size.h / size.w;
       var used = {};
       var cover = o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, back = o.backBlob ? { id: '__back', blob: o.backBlob } : null;
       var pick = function (pred) { var r = photos.filter(function (x) { return !used[x.id] && (!pred || pred(x)); })[0] || null; if (r) used[r.id] = 1; return r; };
       var land = function (r) { return (dims[r.id] || 1.3) >= 1.15; }, tall = function (r) { return (dims[r.id] || 1) < 0.95; };
       var L = [{ t: 'cover', photo: cover }];
-      L.push({ t: 'inside', photo: size.land ? (pick(land) || pick()) : (pick(tall) || pick()) });
+      L.push({ t: 'inside', photo: o.insideBlob ? { id: '__inside', blob: o.insideBlob } : (size.land ? (pick(land) || pick()) : (pick(tall) || pick())) });
       var toc = { t: 'toc', photos: [] }; L.push(toc);
       DAYS.forEach(function (day) {
         var its = items.filter(function (r) { return (A.effDay ? A.effDay(r) : r.day) === day.id; }).sort(A.byTime);
@@ -1002,8 +1002,8 @@
       '<div class="jr-label" style="margin-top:4px">書名</div><input class="jr-input" data-k="title" maxlength="24" value="' + esc(A.lsGet('bjj-book-title', '相約北京・六日遊記')) + '">' +
       '<div class="jr-label">副標題</div><input class="jr-input" data-k="sub" maxlength="30" value="' + esc(A.lsGet(LS_SUB, '漫步古都的秋日旅行')) + '">' +
       '<div class="jr-label">收錄誰的紀錄</div><div class="jr-chips" data-k="who"></div>' +
-      '<div class="jr-label">封面與封底圖片</div><div class="bk-up"><div data-k="upc"></div><div data-k="upb"></div></div>' +
-      '<div class="jr-hint">自己選一張圖片當封面／封底（可以不選，會用設計好的圖案）。</div>' +
+      '<div class="jr-label">封面、第一頁、封底圖片</div><div class="bk-up"><div data-k="upc"></div><div data-k="upi"></div><div data-k="upb"></div></div>' +
+      '<div class="jr-hint">自己選圖片（可以不選：封面、封底會用設計好的圖案，第一頁會從相簿挑一張）。</div>' +
       '<div class="jr-label">印刷尺寸</div><div class="jr-chips" data-k="size"></div><div class="jr-hint" data-k="sizehint"></div>' +
       '<div class="jr-label">頁數</div><div class="jr-chips"><button class="jr-chip on" data-k="pad" type="button">補齊為 8 的倍數</button></div>' +
       '<div class="jr-hint">不夠的頁數會補上「旅途筆記」和「貼票根」頁，印好後可以親手寫、貼。</div>' +
@@ -1016,11 +1016,11 @@
     }
     // 封面／封底圖片：自己從手機選，存在這台裝置，下次做書還在
     function slot(key, label) {
-      var box = K(key === 'cover' ? 'upc' : 'upb'), blob = st[key + 'Blob'];
+      var box = K(key === 'cover' ? 'upc' : key === 'inside' ? 'upi' : 'upb'), blob = st[key + 'Blob'];
       if (st[key + 'Url']) { URL.revokeObjectURL(st[key + 'Url']); st[key + 'Url'] = null; }
       var url = blob ? (st[key + 'Url'] = URL.createObjectURL(blob)) : '';
       box.className = 'bk-slot' + (blob ? ' has' : '');
-      box.innerHTML = (blob ? '<img src="' + url + '" alt="">' : '<span class="ph">' + (key === 'cover' ? '📕' : '📗') + '</span>') +
+      box.innerHTML = (blob ? '<img src="' + url + '" alt="">' : '<span class="ph">' + (key === 'cover' ? '📕' : key === 'inside' ? '📖' : '📗') + '</span>') +
         '<b>' + label + '</b><div class="row"><button class="jr-btn" data-a="pick" type="button">' + (blob ? '更換' : '選擇圖片') + '</button>' + (blob ? '<button class="jr-btn ghost" data-a="rm" type="button">移除</button>' : '') + '</div>';
       box.querySelector('[data-a="pick"]').onclick = function () {
         var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
@@ -1035,11 +1035,13 @@
       K('sizehint').textContent = SIZES[st.size].land ? '橫式：每一頁放左右兩個雜誌頁，翻開就像一本攤開的雜誌。' : SIZES[st.size].tt ? '直式寫真本：每頁一個雜誌頁，至少 40 頁。' : '文庫本：口袋大小，一般印刷廠都能印。';
     }
     K('pad').onclick = function () { st.pad = !st.pad; K('pad').classList.toggle('on', st.pad); };
-    drawWho(); drawSize(); slot('cover', '封面'); slot('back', '封底');
-    Promise.all([assetGet('cover'), assetGet('back')]).then(function (v) { if (v[0]) { st.coverBlob = v[0]; slot('cover', '封面'); } if (v[1]) { st.backBlob = v[1]; slot('back', '封底'); } });
+    drawWho(); drawSize(); slot('cover', '封面'); slot('inside', '第一頁'); slot('back', '封底');
+    Promise.all([assetGet('cover'), assetGet('inside'), assetGet('back')]).then(function (v) {
+      if (v[0]) { st.coverBlob = v[0]; slot('cover', '封面'); } if (v[1]) { st.insideBlob = v[1]; slot('inside', '第一頁'); } if (v[2]) { st.backBlob = v[2]; slot('back', '封底'); }
+    });
     K('go').onclick = function () {
       if (!st.authors.length) { A.toast('至少選一位記錄者'); return; }
-      var o = { title: K('title').value.trim() || '相約北京', sub: K('sub').value.trim(), authors: names.filter(function (n) { return st.authors.indexOf(n) >= 0; }), allNames: names, coverBlob: st.coverBlob || null, backBlob: st.backBlob || null, size: st.size, pad: st.pad };
+      var o = { title: K('title').value.trim() || '相約北京', sub: K('sub').value.trim(), authors: names.filter(function (n) { return st.authors.indexOf(n) >= 0; }), allNames: names, coverBlob: st.coverBlob || null, insideBlob: st.insideBlob || null, backBlob: st.backBlob || null, size: st.size, pad: st.pad };
       A.lsSet('bjj-book-title', o.title); A.lsSet(LS_SUB, o.sub); A.lsSet(LS_SIZE, o.size);
       sheet.close(); setTimeout(function () { openViewer(o); }, 220);
     };
