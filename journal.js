@@ -476,13 +476,13 @@
       $('.prev', lb).style.visibility = idx > 0 ? '' : 'hidden'; $('.next', lb).style.visibility = idx < list.length - 1 ? '' : 'hidden';
       rm.classList.remove('armed'); rm.textContent = '🗑';
       var pk = peopleKind(r);
-      $('.pp', lb).textContent = (r.peopleSet ? '' : '自動：') + (pk === 'p' ? '👨‍👩‍👧 人物照' : pk === 's' ? '🏞 風景照' : '❔ 未辨識');
+      $('.pp', lb).textContent = (r.peopleSet && r.peopleSet !== 'p' ? '' : '自動：') + (pk === 'g' ? '👨‍👩‍👧 合照' : pk === 'p' ? '🧍 獨照' : pk === 's' ? '🏞 風景照' : '❔ 未辨識');
     }
-    // 旅遊書裡人物照、合照會放大，風景照放小；可以手動切換
+    // 旅遊書裡合照會放大，獨照、風景照放小；可以手動切換：合照 → 獨照 → 風景照
     $('.pp', lb).onclick = function () {
-      var r = list[idx], cur2 = peopleKind(r), nextSet = cur2 === 'p' ? 's' : 'p';
+      var r = list[idx], cur2 = peopleKind(r), nextSet = cur2 === 'g' ? 'o' : cur2 === 'p' ? 's' : 'g';
       var nr = Object.assign({}, r, { peopleSet: nextSet, localAddedAt: new Date().toISOString() });
-      dbPut([nr]).then(reload).then(function () { list[idx] = nr; show(); refresh(); toast(nextSet === 'p' ? '設為人物照：旅遊書裡會放大' : '設為風景照：旅遊書裡會放小一點'); }).catch(function () { toast('儲存失敗，請再試一次'); });
+      dbPut([nr]).then(reload).then(function () { list[idx] = nr; show(); refresh(); toast(nextSet === 'g' ? '設為合照：旅遊書裡會放大' : nextSet === 'o' ? '設為獨照：旅遊書裡放小一點' : '設為風景照：旅遊書裡放小一點'); }).catch(function () { toast('儲存失敗，請再試一次'); });
     };
     function go(k) { var n = idx + k; if (n < 0 || n >= list.length) return; idx = n; show(); }
     function close() { lb.classList.remove('show'); document.removeEventListener('keydown', key); setTimeout(function () { if (cur) URL.revokeObjectURL(cur); lb.remove(); unlock(); }, 200); }
@@ -662,7 +662,7 @@
         var blob; try { blob = dataURLToBlob(p.data); } catch (e) { skip++; return step(); }
         p.data = null;
         return makeThumb(blob).then(function (th) {
-          batch.push(Object.assign(base, { kind: 'photo', fp: String(p.fp || ''), note: String(p.note || ''), name: String(p.name || ''), type: blob.type, size: blob.size, blob: blob, thumb: th, people: p.people && typeof p.people === 'object' ? { n: +p.people.n || 0, max: +p.people.max || 0, sum: +p.people.sum || 0 } : undefined, peopleSet: p.peopleSet === 'p' || p.peopleSet === 's' ? p.peopleSet : undefined, exif: !!p.exif, dayPicked: !!p.dayPicked })); nPh++;
+          batch.push(Object.assign(base, { kind: 'photo', fp: String(p.fp || ''), note: String(p.note || ''), name: String(p.name || ''), type: blob.type, size: blob.size, blob: blob, thumb: th, people: p.people && typeof p.people === 'object' ? Object.assign({ n: +p.people.n || 0, max: +p.people.max || 0, sum: +p.people.sum || 0 }, p.people.g != null ? { g: +p.people.g || 0 } : {}) : undefined, peopleSet: /^[psgo]$/.test(p.peopleSet || '') ? p.peopleSet : undefined, exif: !!p.exif, dayPicked: !!p.dayPicked })); nPh++;
           return after();
         });
       };
@@ -687,10 +687,20 @@
   }
   /* ---------------- 人物辨識（在手機上執行，照片不會上傳） ---------------- */
   // 用 MediaPipe 物件偵測找出照片裡的「人」，記下人物佔畫面的比例；旅遊書據此把合照、人物照放大
+  // 回傳 'g' 合照（兩人以上）、'p' 獨照、's' 風景照、'' 還沒辨識
+  function autoKind(q) {
+    if (!q) return '';
+    if (!(q.max >= 0.07 || (q.n >= 2 && q.sum >= 0.09))) return 's';
+    var g = q.g != null ? q.g : (q.n >= 2 && q.sum - q.max >= 0.03 ? 2 : 1);   // 舊資料沒有 g：用其他人加總的大小推估
+    return g >= 2 ? 'g' : 'p';
+  }
   function peopleKind(r) {
-    if (r.peopleSet === 'p' || r.peopleSet === 's') return r.peopleSet;
-    var q = r.people; if (!q) return '';
-    return (q.max >= 0.07 || (q.n >= 2 && q.sum >= 0.09)) ? 'p' : 's';
+    var ps = r.peopleSet;
+    if (ps === 'g' || ps === 's') return ps;
+    if (ps === 'o') return 'p';
+    var a = autoKind(r.people);
+    if (ps === 'p') return a === 'p' ? 'p' : 'g';   // 舊版手動設的「人物照」
+    return a;
   }
   var MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
   var MODEL = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite';
@@ -704,7 +714,7 @@
     return detP;
   }
   function detectPeople(recs, onProg) {
-    var todo = recs.filter(function (r) { return isPhoto(r) && !r.people && !r.peopleSet; });
+    var todo = recs.filter(function (r) { return isPhoto(r) && !/^[gos]$/.test(r.peopleSet || '') && (!r.people || r.people.g == null); });
     if (!todo.length) return Promise.resolve(0);
     return detector().then(function (det) {
       var i = 0, done = [];
@@ -716,9 +726,11 @@
             var cv = document.createElement('canvas'), k = Math.min(1, 480 / Math.max(bm.width, bm.height));
             cv.width = Math.round(bm.width * k); cv.height = Math.round(bm.height * k);
             cv.getContext('2d').drawImage(bm, 0, 0, cv.width, cv.height); if (bm.close) bm.close();
-            var out = det.detect(cv), area = cv.width * cv.height, n = 0, mx = 0, sum = 0;
-            (out.detections || []).forEach(function (d) { var b = d.boundingBox; if (!b) return; var f = (b.width * b.height) / area; n++; sum += f; if (f > mx) mx = f; });
-            done.push(Object.assign({}, r, { people: { n: n, max: Math.round(mx * 1000) / 1000, sum: Math.round(Math.min(1, sum) * 1000) / 1000 } }));
+            var out = det.detect(cv), area = cv.width * cv.height, n = 0, mx = 0, sum = 0, fs = [];
+            (out.detections || []).forEach(function (d) { var b = d.boundingBox; if (!b) return; var f = (b.width * b.height) / area; n++; sum += f; fs.push(f); if (f > mx) mx = f; });
+            // 合照：主要人物（不是背景路人）有兩個以上
+            var g = fs.filter(function (f) { return f >= Math.max(0.012, mx * 0.35); }).length;
+            done.push(Object.assign({}, r, { people: { n: n, max: Math.round(mx * 1000) / 1000, sum: Math.round(Math.min(1, sum) * 1000) / 1000, g: g } }));
           }).catch(function () {}).then(function () { if (onProg) onProg(i, todo.length); setTimeout(next, 0); });
         })();
       });

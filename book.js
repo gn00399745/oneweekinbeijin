@@ -451,7 +451,10 @@
     if (line) p.text(line, t.x + 1.4, t.y + t.h - 1.6, sz, SANS, 400, '#FFFFFF');
     p.text(attr, t.x + t.w - 1.2, t.y + t.h - 1.6, sz * 0.92, SANS, 700, '#FFE3A3', 'right');
   }
-  function isPeople(r) { return window.JournalAPI.peopleKind ? window.JournalAPI.peopleKind(r) === 'p' : false; }
+  // 合照放大；獨照和風景照一樣放小一點
+  function pkind(r) { return window.JournalAPI.peopleKind ? window.JournalAPI.peopleKind(r) : ''; }
+  function isPeople(r) { return pkind(r) === 'g'; }
+  function pRank(r) { var k = pkind(r); return k === 'g' ? 2 : k === 'p' ? 1 : 0; }
   // 有人物的照片給大格、風景照給小格：試遍各種分行方式與順序，挑「人物照面積最大、風景照較小、裁切最少」的排法
   function justifyW(recs, X, Y, Wd, Hd, g) {
     return layoutBest(recs.map(function (r) { return dims[r.id] || 1.33; }), recs.map(isPeople), X, Y, Wd, Hd, g);
@@ -511,7 +514,8 @@
         if (!its.length) return;
         var dayPhotos = its.filter(A.isPhoto);
         var free = dayPhotos.filter(function (r) { return !used[r.id]; });
-        var hero = free.filter(function (r) { return isPeople(r) && (size.land ? (dims[r.id] || 1) < 1.6 : land(r)); })[0] || free.filter(function (r) { return size.land ? true : land(r); })[0] || free[0] || null;
+        var heroOk = function (r) { return size.land ? (dims[r.id] || 1) < 1.6 : land(r); };
+        var hero = free.filter(function (r) { return isPeople(r) && heroOk(r); })[0] || free.filter(function (r) { return pRank(r) && heroOk(r); })[0] || free.filter(function (r) { return size.land ? true : land(r); })[0] || free[0] || null;
         if (hero) used[hero.id] = 1;
         var mealNames = []; DAYS.forEach(function (dd) { dd.meals.forEach(function (m) { mealNames.push(m.name); }); });
         var mealPh = dayPhotos.filter(function (r) { return !used[r.id] && mealNames.indexOf(r.place) >= 0; });
@@ -541,7 +545,7 @@
         var textSeq = function (g, spec, inlineN) {
           var s = [{ t: 'head', pl: g.pl, h: 11 }];
           if (g.info) s.push(Object.assign(noteItem({ id: 'info-' + day.id + g.pl.name, text: g.info, infoBox: true }, spec.cols > 1 && !g.photos.length ? 'all' : 1, spec), { label: '旅遊重點' }));
-          var inl = g.photos.slice().sort(function (a, b) { return (isPeople(b) - isPeople(a)) || A.byTime(a, b); }).filter(function (r) { return D < 3 || isPeople(r); }).slice(0, inlineN);
+          var inl = g.photos.slice().sort(function (a, b) { return (pRank(b) - pRank(a)) || A.byTime(a, b); }).filter(function (r) { return D < 3 || pRank(r); }).slice(0, inlineN);
           g.rest = g.photos.filter(function (r) { return inl.indexOf(r) < 0; });
           inl.concat(g.notes).sort(A.byTime).forEach(function (r, k) {
             if (A.isPhoto(r)) { var span = (spec.cols > 1 && (dims[r.id] || 1.3) >= 1.15 && (isPeople(r) || (!D && k === 0 && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
