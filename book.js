@@ -251,9 +251,8 @@
     p.rot(cx, cy, rot || 0, function () {
       p.shadow(true, 1.6, 0.6); p.rect(x - PF, y - PF, w + 2 * PF, h + PF + CAP, '#FFFFFF'); p.shadow(false);
       p.img(img, x, y, w, h);
-      var attr = '（' + who(r) + ' 拍）', ty = y + h + 4.1;
+      var ty = y + h + 4.1;   // 照片上不標誰拍，拍攝者只寫在頁尾說明裡
       if (capNo[r.id]) badge(p, capNo[r.id], x + 2.1, ty - 0.9);
-      p.text(attr, x + w - 0.3, ty, 2.1, SANS, 700, attrCol(r), 'right');
       if (tapeCol) tape(p, cx, y - PF + 0.3, Math.min(14, w * 0.38), (rot || 0) * -3 + 0.04, tapeCol);
     });
   }
@@ -440,17 +439,10 @@
   }
   function justify(ars, X, Y, Wd, Hd, g) { return layoutBest(ars, ars.map(function () { return false; }), X, Y, Wd, Hd, g); }
   // 照片牆上的說明：照片下緣漸層＋白字（說明（誰 拍））
-  function tileCaption(p, r, t, withPlace) {
-    var c = p.c, attr = '（' + who(r) + ' 拍）', txt = '';   // 照片上只標「誰拍」，地點寫在頁首
+  function tileCaption(p, r, t, withPlace) {   // 照片上只放說明編號，不放誰拍的浮水印
     if (capNo[r.id]) badge(p, capNo[r.id], t.x + 2.6, t.y + 2.6);
-    var sz = Math.min(2.4, Math.max(1.8, t.w / 18)), aw = textW(attr, sz * 0.92, SANS, 700);
-    var g = c.createLinearGradient(0, p.PY(t.y + t.h - 7), 0, p.PY(t.y + t.h));
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
-    c.fillStyle = g; c.fillRect(p.P(t.x), p.PY(t.y + t.h - 7), p.L(t.w), p.L(7));
-    var line = txt && t.w > aw + 8 ? clamp(wrap(txt, sz, SANS, 400, t.w - aw - 3), 1)[0] : '';
-    if (line) p.text(line, t.x + 1.4, t.y + t.h - 1.6, sz, SANS, 400, '#FFFFFF');
-    p.text(attr, t.x + t.w - 1.2, t.y + t.h - 1.6, sz * 0.92, SANS, 700, '#FFE3A3', 'right');
   }
+
   // 合照放大；獨照和風景照一樣放小一點
   function pkind(r) { return window.JournalAPI.peopleKind ? window.JournalAPI.peopleKind(r) : ''; }
   function isPeople(r) { return pkind(r) === 'g'; }
