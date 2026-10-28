@@ -19,6 +19,7 @@
   var CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
   // land：橫式（一頁放兩個雜誌頁）；tt：點點印（TinTint）尺寸，最少 40 頁
   var SIZES = {
+    m: { label: '直式寫真本 14.4×19.2 cm', w: 144, h: 192, tt: true },
     a6: { label: '文庫本 A6 10.5×14.8 cm（直式）', w: 105, h: 148 },
     p: { label: '直式寫真本 19.5×26 cm', w: 195, h: 260, tt: true },
     s: { label: '橫式寫真本 19.2×14.4 cm', w: 192, h: 144, land: true, tt: true },
@@ -998,7 +999,7 @@
     var esc = A.esc, hasMine = all.some(function (r) { return r.mine; });
     if (hasMine && !A.lsGet('bjj-author', '')) { askName(); return; }
     var names = A.authorsAll();
-    var st = { size: SIZES[A.lsGet(LS_SIZE, 'a6')] ? A.lsGet(LS_SIZE, 'a6') : 'a6', pad: true, cover: null, authors: names.slice() };
+    var st = { size: SIZES[A.lsGet(LS_SIZE, 'm')] ? A.lsGet(LS_SIZE, 'm') : 'm', pad: true, cover: null, authors: names.slice() };
     var html =
       '<div class="jr-label" style="margin-top:4px">書名</div><input class="jr-input" data-k="title" maxlength="24" value="' + esc(A.lsGet('bjj-book-title', '相約北京・六日遊記')) + '">' +
       '<div class="jr-label">副標題</div><input class="jr-input" data-k="sub" maxlength="30" value="' + esc(A.lsGet(LS_SUB, '漫步古都的秋日旅行')) + '">' +
