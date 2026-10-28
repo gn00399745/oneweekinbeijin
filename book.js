@@ -391,13 +391,16 @@
     var orders = [idx];
     var limit = n <= 10 ? (1 << (n - 1)) : 0;
     var tryRows = function (rows, oi) {
-      if (rows.length > 4) return;
+      if (rows.length > (n > 10 ? 6 : 4)) return;
       var hs = rows.map(function (rw) { return (Wd - g * (rw.length - 1)) / rw.reduce(function (a, i) { return a + ars[i]; }, 0); });
       var sumH = hs.reduce(function (a, b) { return a + b; }, 0), s = Math.min(1, (Hd - g * (rows.length - 1)) / sumH);
       var used = 0, pa = 0, sa = 0, amax = 0, amin = 1e9;
       rows.forEach(function (rw, ri) { rw.forEach(function (i) { var a = (hs[ri] * s * ars[i]) * (hs[ri] * s) / (Wd * Hd); used += a; if (pe[i]) pa += a; else { sa += a; if (a > amax) amax = a; if (a < amin) amin = a; } }); });
       // 大小差太多（一張超大、其他很小）會很難看，加上懲罰；人物照例外
       var spread = amax > 0 && amin < 1e9 ? Math.log(amax / amin) : 0;
+      // 人物照放大，但不要大到其他照片變成小郵票：人物照平均面積最多約風景照的 3 倍
+      var np = pe.filter(Boolean).length, ns = n - np;
+      if (np && ns && sa > 0) { var ratio = (pa / np) / (sa / ns); if (ratio > 3) spread += Math.log(ratio / 3) * 3; }
       var score = -used * 3 - pa * 2 + sa * 0.4 + spread * 0.35 + oi * 0.03 + rows.filter(function (rw) { return rw.length > 4; }).length * 0.6;
       if (!best || score < best.score) best = { score: score, rows: rows, hs: hs, s: s };
     };
@@ -409,7 +412,13 @@
           tryRows(rows, oi);
         }
       } else {
-        for (var r = 1; r <= 4; r++) { var per = Math.ceil(n / r), rws = []; for (var k = 0; k < n; k += per) rws.push(ord.slice(k, k + per)); tryRows(rws, oi); }
+        // 照片很多時：依寬高比總和平均分行（每行高度接近），試 2～6 行
+        var tot = ord.reduce(function (a, i) { return a + ars[i]; }, 0);
+        for (var r = 2; r <= 6; r++) {
+          var rws = [[]], acc = 0, tgt = tot / r;
+          ord.forEach(function (i, j) { if (rws[rws.length - 1].length && acc + ars[i] / 2 > tgt * rws.length && rws.length < r && n - j >= r - rws.length) rws.push([]); rws[rws.length - 1].push(i); acc += ars[i]; });
+          tryRows(rws, oi);
+        }
       }
     });
     var totalH = best.hs.reduce(function (a, b) { return a + b * best.s; }, 0) + g * (best.rows.length - 1);
@@ -451,6 +460,12 @@
     var tiles = justifyW(recs, X, Y, Wd, Hd, 1.3);
     recs.forEach(function (r, i) { var t = tiles[i]; p.img(imgs[r.id], t.x, t.y, t.w, t.h); tileCaption(p, r, t, withPlace); });
   }
+  // 依「份量」分頁：人物照算比較多份，所以同一頁放的張數少、照片大；風景、食物照算一份，一頁可以擠多張
+  function chunkW(list, cap, wf) {
+    var tot = list.reduce(function (a, r) { return a + wf(r); }, 0), k = Math.max(1, Math.ceil(tot / cap)), per = tot / k, out = [[]], acc = 0;
+    list.forEach(function (r) { var w = wf(r); if (out[out.length - 1].length && acc + w / 2 > per * out.length && out.length < k) out.push([]); out[out.length - 1].push(r); acc += w; });
+    return out;
+  }
   function chunkPhotos(list, cap) {
     var n = list.length, k = Math.ceil(n / cap), out = [], per = Math.ceil(n / k);
     for (var i = 0; i < n; i += per) out.push(list.slice(i, i + per));
@@ -470,7 +485,19 @@
     var A = window.JournalAPI, size = SIZES[o.size];
     var items = A.items().filter(function (r) { return o.authors.indexOf(A.who(r)) >= 0; });
     var photos = items.filter(A.isPhoto).sort(A.byTime);
+    var maxP = o.maxPages || (size.tt ? 80 : 0);
     return preloadDims(photos.concat([o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, o.backBlob ? { id: '__back', blob: o.backBlob } : null, o.insideBlob ? { id: '__inside', blob: o.insideBlob } : null].filter(Boolean))).then(function () {
+      // 頁數超過上限時，一級一級把風景、食物照縮小、一頁多放幾張（人物照維持大張）
+      var bk = null;
+      for (var D = 0; D <= 5; D++) { bk = compose(D); bk.dense = D; if (!maxP || bk.interior <= maxP) break; }
+      return bk;
+    });
+    function compose(D) {
+      var wallCap = [6, 8, 10, 12, 14, 16][D], foodCap = [6, 8, 10, 12, 14, 16][D], pw = D ? 2.2 : 1;
+      var lsideCap = [5, 6, 7, 8, 9, 10][D], lwallCap = [7, 9, 11, 13, 15, 17][D];
+      var inlineN = D <= 1 ? 2 : D <= 3 ? 1 : 0;
+      var wf = function (r) { return isPeople(r) ? pw : 1; };
+      capMode = {};
       var PW = size.land ? 100 * size.w / size.h : 100, H = size.land ? 100 : 100 * size.h / size.w;
       var used = {};
       var cover = o.coverBlob ? { id: '__cover', blob: o.coverBlob } : null, back = o.backBlob ? { id: '__back', blob: o.backBlob } : null;
@@ -488,8 +515,12 @@
         if (hero) used[hero.id] = 1;
         var mealNames = []; DAYS.forEach(function (dd) { dd.meals.forEach(function (m) { mealNames.push(m.name); }); });
         var mealPh = dayPhotos.filter(function (r) { return !used[r.id] && mealNames.indexOf(r.place) >= 0; });
-        var foodPages = [], foodCap = size.land ? 6 : 6;
-        if (mealPh.length >= 4) {   // 依餐廳分頁，標題寫餐廳名稱
+        var foodPages = [];
+        if (D && mealPh.length >= 2) {   // 要省頁數：同一天的餐廳合在一起排，標題寫各餐廳名稱
+          var names2 = []; mealPh.forEach(function (r) { if (names2.indexOf(r.place) < 0) names2.push(r.place); });
+          chunkW(mealPh, foodCap, wf).forEach(function (ch) { var nm = []; ch.forEach(function (r) { if (nm.indexOf(r.place) < 0) nm.push(r.place); }); foodPages.push({ t: 'food', day: day, place: nm.join('・'), photos: ch }); });
+          mealPh.forEach(function (r) { used[r.id] = 1; });
+        } else if (mealPh.length >= 4) {   // 依餐廳分頁，標題寫餐廳名稱
           var byRest = [], seenR = {};
           mealPh.forEach(function (r) { var k = r.place || ''; if (!seenR[k]) { seenR[k] = []; byRest.push(k); } seenR[k].push(r); });
           byRest.forEach(function (k) { chunkPhotos(seenR[k], foodCap).forEach(function (ch) { foodPages.push({ t: 'food', day: day, place: k, photos: ch }); }); });
@@ -510,10 +541,10 @@
         var textSeq = function (g, spec, inlineN) {
           var s = [{ t: 'head', pl: g.pl, h: 11 }];
           if (g.info) s.push(Object.assign(noteItem({ id: 'info-' + day.id + g.pl.name, text: g.info, infoBox: true }, spec.cols > 1 && !g.photos.length ? 'all' : 1, spec), { label: '旅遊重點' }));
-          var inl = g.photos.slice().sort(function (a, b) { return (isPeople(b) - isPeople(a)) || A.byTime(a, b); }).slice(0, inlineN);
+          var inl = g.photos.slice().sort(function (a, b) { return (isPeople(b) - isPeople(a)) || A.byTime(a, b); }).filter(function (r) { return D < 3 || isPeople(r); }).slice(0, inlineN);
           g.rest = g.photos.filter(function (r) { return inl.indexOf(r) < 0; });
           inl.concat(g.notes).sort(A.byTime).forEach(function (r, k) {
-            if (A.isPhoto(r)) { var span = (spec.cols > 1 && (dims[r.id] || 1.3) >= 1.15 && (isPeople(r) || (k === 0 && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
+            if (A.isPhoto(r)) { var span = (spec.cols > 1 && (dims[r.id] || 1.3) >= 1.15 && (isPeople(r) || (!D && k === 0 && g.photos.length >= 2))) ? 'all' : 1; s.push(photoItem(r, dims[r.id], span, spec)); }
             else { var long = spec.cols > 1 && Array.from(r.text).length > 150; var ni = noteItem(r, long ? 'all' : 1, spec); ni.label = r.capCard ? '照片說明' : r.star ? '重點見聞' : 'Memo'; s.push(ni); }
           });
           return s;
@@ -521,16 +552,31 @@
         if (!size.land) {
           // 直式：兩欄拼貼（每個地點先放 2 張照片），其餘照片接在後面排成滿版照片牆
           var spec = { x0: 6, w: 88, cols: 2, gut: 4 }, seq = [], extra = {};
-          groups.forEach(function (g) { seq = seq.concat(textSeq(g, spec, 2)); if (g.rest.length) extra[g.pl.name + '|' + g.pl.label] = g.rest; });
+          groups.forEach(function (g) { seq = seq.concat(textSeq(g, spec, inlineN)); if (g.rest.length) extra[g.pl.name + '|' + g.pl.label] = g.rest; });
           var routeN = clamp(wrap(stopsLine(day), 3, SANS, 600, 86), 2).length, heroH = 0, dayPages = null;
           // 最後一頁只剩一點點時，把開場大照片縮小一些，避免浪費一頁
-          [0.4, 0.31, 0.24].some(function (k) {
+          (D >= 3 ? [0.31, 0.24] : [0.4, 0.31, 0.24]).some(function (k) {
             heroH = Math.min(H * k, hero ? 100 / (dims[hero.id] || 1.5) : H * k); dayPages = paginate(seq, heroH + 7.5 + 13.5 + (routeN - 1) * 4.2 + 4, H, spec, 10, hero && capText(hero) ? capEntryLines(hero, spec.w).length * CL + 3.2 : 0);
             return dayPages.length === 1 || dayPages[dayPages.length - 1].items.length >= 2;
           });
+          var carry = { ph: [], nm: [] };
           dayPages.forEach(function (pg, k) {
             L.push({ t: 'day', day: day, first: k === 0, hero: k === 0 ? hero : null, heroH: heroH, lay: pg });
-            pg.heads.forEach(function (key) { if (extra[key]) { chunkPhotos(extra[key], 6).forEach(function (ch) { L.push({ t: 'wall', day: day, place: key.split('|')[1], photos: ch }); }); delete extra[key]; } });
+            // 照片牆：每個地點自成一頁；只剩一兩張的地點合在一起，不浪費整頁
+            var walls = [], pool = carry.ph, poolN = carry.nm; carry = { ph: [], nm: [] };
+            pg.heads.forEach(function (key) {
+              var ex = extra[key]; if (!ex) return; delete extra[key];
+              if (ex.length < 3) { pool = pool.concat(ex); poolN.push(key.split('|')[1]); return; }
+              chunkW(ex, wallCap, wf).forEach(function (ch) { walls.push({ t: 'wall', day: day, place: key.split('|')[1], photos: ch }); });
+            });
+            if (pool.length) {
+              var lastW = walls[walls.length - 1];
+              if (pool.length < 3 && lastW && lastW.photos.reduce(function (a, r) { return a + wf(r); }, 0) + pool.reduce(function (a, r) { return a + wf(r); }, 0) <= wallCap + 1) { lastW.photos = lastW.photos.concat(pool); lastW.place = [lastW.place].concat(poolN).join('・'); }
+              else if (pool.length < 3 && k < dayPages.length - 1) carry = { ph: pool, nm: poolN };   // 先留到下一頁一起排
+              else if (pool.length < 3 && (lastW = L.filter(function (x) { return x.t === 'wall' && x.day === day; }).pop()) && lastW.photos.reduce(function (a, r) { return a + wf(r); }, 0) + pool.length <= wallCap + 2) { lastW.photos = lastW.photos.concat(pool); if (lastW.place.indexOf(poolN[0]) < 0) lastW.place = [lastW.place].concat(poolN).join('・'); }
+              else chunkW(pool, wallCap, wf).forEach(function (ch) { walls.push({ t: 'wall', day: day, place: poolN.join('・'), photos: ch }); });
+            }
+            walls.forEach(function (wl) { L.push(wl); });
           });
         } else {
           // 橫式：開場頁＝左側滿版大照片＋右側標題與行程；之後每頁＝左側文字欄＋右側照片牆
@@ -554,11 +600,12 @@
               pg.heads.forEach(function (key) { var g = byKey[key]; if (g) own = own.concat(g.photos); });
               // 這頁沒有自己的照片時，先用上一頁放不下的照片，右側不留白
               if (!own.length) { own = pending; pending = []; }
-              else if (pending.length) { chunkPhotos(pending, 7).forEach(function (pp) { L.push({ t: 'wall', day: day, place: phPlace, photos: pp }); }); pending = []; }
-              L.push({ t: 'lside', day: day, lay: pg, photos: own.slice(0, 5), cont: !pg.heads.length ? phPlace : '' });
-              pending = own.slice(5);
+              else if (pending.length) { chunkW(pending, lwallCap, wf).forEach(function (pp) { L.push({ t: 'wall', day: day, place: phPlace, photos: pp }); }); pending = []; }
+              var take = chunkW(own, lsideCap, wf)[0] || [];
+              L.push({ t: 'lside', day: day, lay: pg, photos: take, cont: !pg.heads.length ? phPlace : '' });
+              pending = own.slice(take.length);
             });
-            if (pending.length) chunkPhotos(pending, 7).forEach(function (pp) { L.push({ t: 'wall', day: day, place: phPlace, photos: pp }); });
+            if (pending.length) chunkW(pending, lwallCap, wf).forEach(function (pp) { L.push({ t: 'wall', day: day, place: phPlace, photos: pp }); });
           });
         }
         foodPages.forEach(function (fp) { L.push(fp); });
@@ -568,13 +615,14 @@
       var end = { t: 'end', photo: back, photos: [] };
       var interior = L.length - 1 + 1;
       var target = o.pad ? Math.max(size.tt ? 40 : 8, Math.ceil(interior / 8) * 8) : interior, mi = 0;
+      if (maxP && target > maxP) target = Math.max(interior, maxP);
       while (interior++ < target) L.push({ t: 'memo', i: mi++ });
       L.push(end);
       L.forEach(function (pg, i) { pg.n = i; });
       var dayStart = {}; L.forEach(function (pg) { if ((pg.t === 'day' && pg.first) || pg.t === 'lopen') dayStart[pg.day.id] = pg.n; });
       var sheets = L.map(function (pg, i) { return { n: i, pages: [pg] }; });
       return { L: L, sheets: sheets, H: H, PW: PW, size: size, items: items, photos: photos, dayStart: dayStart, interior: L.length - 1 };
-    });
+    }
   }
 
   /* ---------- 各種頁面 ---------- */
@@ -1070,7 +1118,8 @@
     detect.then(function () { return ensureFonts(allText); }).then(function () { return build(o); }).then(function (b) {
       bk = b; if (!alive) return;
       Q('sum').innerHTML = '<b>' + A.esc(size.label) + '</b>・封面＋內頁 ' + bk.interior + ' 頁・300 dpi・四邊含 3 mm 出血';
-      if (size.tt && bk.interior > 80) { Q('warn').style.display = ''; Q('warn').textContent = '內頁超過 80 頁，寫真本最多 80 頁；可以少收錄一些照片，或分成兩本。'; }
+      if (size.tt && bk.interior > 80) { Q('warn').style.display = ''; Q('warn').textContent = '照片已經縮到最小，內頁還是超過 80 頁；可以少收錄一些照片，或分成兩本。'; }
+      else if (bk.dense) { Q('warn').style.display = ''; Q('warn').textContent = '照片比較多，為了控制在 80 頁以內，風景和食物照已縮小、一頁多放幾張；人物合照維持大張。'; }
       // 預覽：封面單獨一張，其後依實體頁攤開（直式兩頁一組）
       var grid = Q('grid'), i = 0, row = null;
       (function next() {
