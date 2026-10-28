@@ -217,7 +217,7 @@
   var capMode = {}, capNo = {};
   function capText(r) { return capMode[r.id] === 'show' ? String(r.note || '').trim() : ''; }
   var CS = 2.45, CL = 3.7;
-  function capEntryLines(r, w) { return wrap(capText(r) + '（' + who(r) + ' 拍）', CS, SANS, 400, w - 6); }
+  function capEntryLines(r, w) { return wrap(capText(r) + '（' + who(r) + '）', CS, SANS, 400, w - 6); }
   function capBlockH(recs, w) { var n = 0; recs.forEach(function (r) { if (capText(r)) n += capEntryLines(r, w).length; }); return n ? n * CL + 3.2 : 0; }
   // 為這一頁有說明的照片編號
   function numberCaps(recs) { capNo = {}; var k = 0; recs.forEach(function (r) { if (r && capText(r) && !capNo[r.id]) capNo[r.id] = ++k; }); return recs.filter(function (r) { return r && capNo[r.id]; }).sort(function (a, b) { return capNo[a.id] - capNo[b.id]; }); }
@@ -235,7 +235,7 @@
       var ls = capEntryLines(r, w);
       badge(p, capNo[r.id], x + 1.9, y + CL * 0.55 - 1.3);
       ls.forEach(function (l, i) {
-        var last = i === ls.length - 1, attr = '（' + who(r) + ' 拍）';
+        var last = i === ls.length - 1, attr = '（' + who(r) + '）';
         if (last && l.slice(-attr.length) === attr) {
           var body = l.slice(0, l.length - attr.length);
           p.text(body, x + 5, y + 1.6, CS, SANS, 400, C.ink);
@@ -270,7 +270,7 @@
       p.text(label, x + w / 2, y + 6.1, 3.1, r.infoBox ? SANS : HAND, 700, r.infoBox ? C.oliveD : star ? C.red : '#6E5B45', 'center');
       p.rect(x + 2.5, y + 7.2, w - 5, 0.18, star ? 'rgba(178,58,48,.45)' : C.kraftD);
       p.lines(it.lines, x + 3, y + 7.4 + NL * 0.82, NS, NL, SANS, 400, C.ink);
-      if (it.attr && !r.infoBox) p.text('（' + who(r) + (r.capCard ? ' 拍）' : ' 說）'), x + w - 3, y + h - 2.1, 2.3, SANS, 700, attrCol(r), 'right');
+      if (it.attr && !r.infoBox) p.text('（' + who(r) + (r.capCard ? '）' : ' 說）'), x + w - 3, y + h - 2.1, 2.3, SANS, 700, attrCol(r), 'right');
       if (star && !it.cont) {
         p.rot(x + w - 4.5, y + 4.2, 0.18, function () {
           c.strokeStyle = C.red; c.lineWidth = p.L(0.35); c.beginPath(); c.arc(p.P(x + w - 4.5), p.PY(y + 4.2), p.L(3.3), 0, Math.PI * 2); c.stroke();
